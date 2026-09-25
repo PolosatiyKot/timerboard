@@ -15,15 +15,16 @@ const addTimerButton = document.getElementById("addTimerButton");
 const settingsModal = document.getElementById("settingsModal");
 const modalOverlay = document.getElementById("modalOverlay");
 const closeSettingsButton = document.getElementById("closeSettingsButton");
+const cancelSettingsButton = document.getElementById("cancelSettingsButton");
 
 const settingsForm = document.getElementById("settingsForm");
 const adminPasswordInput = document.getElementById("adminPasswordInput");
 const userPasswordInput = document.getElementById("userPasswordInput");
+const viewerPasswordInput = document.getElementById("viewerPasswordInput");
 const settingsMessage = document.getElementById("settingsMessage");
 
 let currentRole = null;
 let timers = [];
-let intervalId = null;
 
 
 // =========================
@@ -66,12 +67,15 @@ async function checkSession() {
 
         if (data.authenticated) {
             currentRole = data.role;
+
             showTimerPage();
             await loadTimers();
         } else {
             showLoginPage();
         }
-    } catch {
+
+    } catch (error) {
+        console.error(error);
         showLoginPage();
     }
 }
@@ -83,10 +87,6 @@ function showLoginPage() {
 
     if (settingsButton) {
         settingsButton.classList.add("hidden");
-    }
-
-    if (addTimerButton) {
-        addTimerButton.classList.remove("hidden");
     }
 
     currentRole = null;
@@ -103,12 +103,59 @@ function showTimerPage() {
         settingsButton.classList.add("hidden");
     }
 
-    // Viewer не может создавать таймеры
-    if (currentRole === "viewer") {
-        addTimerButton.classList.add("hidden");
-    } else {
-        addTimerButton.classList.remove("hidden");
-    }
+    updateViewerInterface();
+}
+
+
+// =========================
+// VIEWER
+// =========================
+
+function updateViewerInterface() {
+    const isViewer = currentRole === "viewer";
+
+    addTimerButton.classList.toggle("hidden", isViewer);
+
+    document.querySelectorAll(".timer-card").forEach(card => {
+        const systemInput = card.querySelector(".timer-system");
+        const anomalyInput = card.querySelector(".timer-anomaly");
+        const descriptionInput = card.querySelector(".timer-description");
+
+        const daysInput = card.querySelector(".days-input");
+        const hoursInput = card.querySelector(".hours-input");
+        const minutesInput = card.querySelector(".minutes-input");
+        const secondsInput = card.querySelector(".seconds-input");
+
+        const startButton = card.querySelector(".start-button");
+        const stopButton = card.querySelector(".stop-button");
+        const deleteButton = card.querySelector(".delete-button");
+
+        [
+            systemInput,
+            anomalyInput,
+            descriptionInput,
+            daysInput,
+            hoursInput,
+            minutesInput,
+            secondsInput
+        ].forEach(input => {
+            if (input) {
+                input.disabled = isViewer;
+            }
+        });
+
+        if (startButton) {
+            startButton.classList.toggle("hidden", isViewer);
+        }
+
+        if (stopButton) {
+            stopButton.classList.toggle("hidden", isViewer);
+        }
+
+        if (deleteButton) {
+            deleteButton.classList.toggle("hidden", isViewer);
+        }
+    });
 }
 
 
@@ -181,7 +228,7 @@ applySavedTheme();
 // LOGIN
 // =========================
 
-loginForm.addEventListener("submit", async (event) => {
+loginForm.addEventListener("submit", async event => {
     event.preventDefault();
 
     loginError.textContent = "";
@@ -209,13 +256,14 @@ loginForm.addEventListener("submit", async (event) => {
         await loadTimers();
 
     } catch (error) {
-        loginError.textContent = error.message || "Неверный пароль";
+        loginError.textContent =
+            error.message || "Неверный пароль";
     }
 });
 
 
 // =========================
-// TIMERS
+// LOAD TIMERS
 // =========================
 
 async function loadTimers() {
@@ -226,10 +274,7 @@ async function loadTimers() {
             ? data
             : (data.timers || []);
 
-        timers.sort((a, b) => {
-            return Number(a.remaining_seconds || 0)
-                - Number(b.remaining_seconds || 0);
-        });
+        sortTimers();
 
         renderTimers();
 
@@ -240,14 +285,23 @@ async function loadTimers() {
 }
 
 
-// Переставляет уже существующие карточки.
-// Карточки НЕ пересоздаются каждую секунду,
-// поэтому пользователь не теряет фокус при вводе текста.
+function sortTimers() {
+    timers.sort((a, b) => {
+        return Number(a.remaining_seconds || 0)
+            - Number(b.remaining_seconds || 0);
+    });
+}
+
+
+// =========================
+// REORDER WITHOUT RECREATING
+// =========================
+
 function reorderTimerCards() {
     const activeElement = document.activeElement;
 
     // Пока пользователь печатает в поле,
-    // не трогаем порядок карточек.
+    // не двигаем карточки.
     if (
         activeElement &&
         timersGrid.contains(activeElement) &&
@@ -260,11 +314,12 @@ function reorderTimerCards() {
     }
 
     const cardMap = new Map(
-        Array.from(timersGrid.querySelectorAll(".timer-card"))
-            .map(card => [
-                Number(card.dataset.timerId),
-                card
-            ])
+        Array.from(
+            timersGrid.querySelectorAll(".timer-card")
+        ).map(card => [
+            Number(card.dataset.timerId),
+            card
+        ])
     );
 
     for (const timer of timers) {
@@ -277,6 +332,10 @@ function reorderTimerCards() {
 }
 
 
+// =========================
+// RENDER
+// =========================
+
 function renderTimers() {
     timersGrid.innerHTML = "";
 
@@ -286,6 +345,8 @@ function renderTimers() {
     });
 
     timersGrid.appendChild(addTimerButton);
+
+    updateViewerInterface();
 }
 
 
@@ -295,69 +356,78 @@ function renderTimers() {
 
 function createTimerCard(timer) {
     const template = document.getElementById("timerTemplate");
-    const card = template.content.firstElementChild.cloneNode(true);
+
+    const card = template.content
+        .firstElementChild
+        .cloneNode(true);
 
     card.dataset.timerId = String(timer.id);
 
-    // Текстовые поля
-    const anomaly = card.querySelector(".timer-anomaly");
-    const system = card.querySelector(".timer-system");
-    const description = card.querySelector(".timer-description");
+    const anomalyInput =
+        card.querySelector(".timer-anomaly");
 
-    // Дисплей
-    const display = card.querySelector(".timer-display");
+    const systemInput =
+        card.querySelector(".timer-system");
 
-    // Продолжительность
-    const daysInput = card.querySelector(".days-input");
-    const hoursInput = card.querySelector(".hours-input");
-    const minutesInput = card.querySelector(".minutes-input");
-    const secondsInput = card.querySelector(".seconds-input");
+    const descriptionInput =
+        card.querySelector(".timer-description");
 
-    // Кнопки
-    const startButton = card.querySelector(".start-button");
-    const stopButton = card.querySelector(".stop-button");
-    const deleteButton = card.querySelector(".delete-button");
+    const display =
+        card.querySelector(".timer-display");
+
+    const daysInput =
+        card.querySelector(".days-input");
+
+    const hoursInput =
+        card.querySelector(".hours-input");
+
+    const minutesInput =
+        card.querySelector(".minutes-input");
+
+    const secondsInput =
+        card.querySelector(".seconds-input");
+
+    const startButton =
+        card.querySelector(".start-button");
+
+    const stopButton =
+        card.querySelector(".stop-button");
+
+    const deleteButton =
+        card.querySelector(".delete-button");
 
 
     // =========================
     // INITIAL VALUES
     // =========================
 
-    anomaly.value = timer.anomaly || "";
-    system.value = timer.system || "";
-    description.value = timer.description || "";
+    anomalyInput.value =
+        timer.anomaly || "";
 
-    daysInput.value = timer.days || 0;
-    hoursInput.value = timer.hours || 0;
-    minutesInput.value = timer.minutes || 0;
-    secondsInput.value = timer.seconds || 0;
+    systemInput.value =
+        timer.system || "";
 
+    descriptionInput.value =
+        timer.description || "";
 
-    // =========================
-    // VIEWER MODE
-    // =========================
+    daysInput.value =
+        timer.days || 0;
 
-    if (currentRole === "viewer") {
-        anomaly.readOnly = true;
-        system.readOnly = true;
-        description.readOnly = true;
+    hoursInput.value =
+        timer.hours || 0;
 
-        daysInput.disabled = true;
-        hoursInput.disabled = true;
-        minutesInput.disabled = true;
-        secondsInput.disabled = true;
+    minutesInput.value =
+        timer.minutes || 0;
 
-        startButton.disabled = true;
-        stopButton.disabled = true;
-        deleteButton.disabled = true;
-    }
+    secondsInput.value =
+        timer.seconds || 0;
 
 
-    let remainingSeconds = Number(
-        timer.remaining_seconds || 0
-    );
+    let remainingSeconds =
+        Number(timer.remaining_seconds || 0);
 
-    let running = Boolean(timer.running);
+    let running =
+        Boolean(timer.running);
 
 
     // =========================
@@ -365,48 +435,42 @@ function createTimerCard(timer) {
     // =========================
 
     function updateDisplay() {
-        display.textContent = formatTime(remainingSeconds);
+        display.textContent =
+            formatTime(remainingSeconds);
     }
 
     updateDisplay();
 
 
     // =========================
-    // TEXT FIELDS
+    // ANOMALY
     // =========================
 
-    // Аномалька
-    anomaly.addEventListener("change", async () => {
-        if (currentRole === "viewer") {
-            return;
-        }
-
+    anomalyInput.addEventListener("change", async () => {
         await updateTimer(timer.id, {
-            anomaly: anomaly.value
+            anomaly: anomalyInput.value
         });
     });
 
 
-    // Система
-    system.addEventListener("change", async () => {
-        if (currentRole === "viewer") {
-            return;
-        }
+    // =========================
+    // SYSTEM
+    // =========================
 
+    systemInput.addEventListener("change", async () => {
         await updateTimer(timer.id, {
-            system: system.value
+            system: systemInput.value
         });
     });
 
 
-    // Игрок
-    description.addEventListener("change", async () => {
-        if (currentRole === "viewer") {
-            return;
-        }
+    // =========================
+    // PLAYER
+    // =========================
 
+    descriptionInput.addEventListener("change", async () => {
         await updateTimer(timer.id, {
-            description: description.value
+            description: descriptionInput.value
         });
     });
 
@@ -416,20 +480,25 @@ function createTimerCard(timer) {
     // =========================
 
     async function saveDuration() {
-        if (currentRole === "viewer") {
-            return;
-        }
+        const days =
+            normalizeNumber(daysInput.value);
 
-        const days = normalizeNumber(daysInput.value);
-        const hours = normalizeNumber(hoursInput.value);
-        const minutes = normalizeNumber(minutesInput.value);
-        const seconds = normalizeNumber(secondsInput.value);
+        const hours =
+            normalizeNumber(hoursInput.value);
+
+        const minutes =
+            normalizeNumber(minutesInput.value);
+
+        const seconds =
+            normalizeNumber(secondsInput.value);
+
 
         remainingSeconds =
             days * 86400 +
             hours * 3600 +
             minutes * 60 +
             seconds;
+
 
         await updateTimer(timer.id, {
             days,
@@ -439,14 +508,30 @@ function createTimerCard(timer) {
             remaining_seconds: remainingSeconds
         });
 
+
         updateDisplay();
     }
 
 
-    daysInput.addEventListener("change", saveDuration);
-    hoursInput.addEventListener("change", saveDuration);
-    minutesInput.addEventListener("change", saveDuration);
-    secondsInput.addEventListener("change", saveDuration);
+    daysInput.addEventListener(
+        "change",
+        saveDuration
+    );
+
+    hoursInput.addEventListener(
+        "change",
+        saveDuration
+    );
+
+    minutesInput.addEventListener(
+        "change",
+        saveDuration
+    );
+
+    secondsInput.addEventListener(
+        "change",
+        saveDuration
+    );
 
 
     // =========================
@@ -467,21 +552,28 @@ function createTimerCard(timer) {
         }
 
         try {
-            const data = await api(`/api/timers/${timer.id}`, {
-                method: "PUT",
-                body: JSON.stringify({
-                    running: 1,
-                    remaining_seconds: remainingSeconds
-                })
-            });
+            const data = await api(
+                `/api/timers/${timer.id}`,
+                {
+                    method: "PUT",
+                    body: JSON.stringify({
+                        running: 1,
+                        remaining_seconds:
+                            remainingSeconds
+                    })
+                }
+            );
 
             if (data.timer) {
-                remainingSeconds = Number(
-                    data.timer.remaining_seconds ?? remainingSeconds
-                );
+                remainingSeconds =
+                    Number(
+                        data.timer.remaining_seconds ??
+                        remainingSeconds
+                    );
             }
 
             running = true;
+
             updateDisplay();
 
         } catch (error) {
@@ -500,21 +592,28 @@ function createTimerCard(timer) {
         }
 
         try {
-            const data = await api(`/api/timers/${timer.id}`, {
-                method: "PUT",
-                body: JSON.stringify({
-                    running: 0,
-                    remaining_seconds: remainingSeconds
-                })
-            });
+            const data = await api(
+                `/api/timers/${timer.id}`,
+                {
+                    method: "PUT",
+                    body: JSON.stringify({
+                        running: 0,
+                        remaining_seconds:
+                            remainingSeconds
+                    })
+                }
+            );
 
             if (data.timer) {
-                remainingSeconds = Number(
-                    data.timer.remaining_seconds ?? remainingSeconds
-                );
+                remainingSeconds =
+                    Number(
+                        data.timer.remaining_seconds ??
+                        remainingSeconds
+                    );
             }
 
             running = false;
+
             updateDisplay();
 
         } catch (error) {
@@ -537,9 +636,12 @@ function createTimerCard(timer) {
         }
 
         try {
-            await api(`/api/timers/${timer.id}`, {
-                method: "DELETE"
-            });
+            await api(
+                `/api/timers/${timer.id}`,
+                {
+                    method: "DELETE"
+                }
+            );
 
             await loadTimers();
 
@@ -554,6 +656,7 @@ function createTimerCard(timer) {
     // =========================
 
     const localInterval = setInterval(async () => {
+
         if (!document.body.contains(card)) {
             clearInterval(localInterval);
             return;
@@ -563,75 +666,77 @@ function createTimerCard(timer) {
             return;
         }
 
+
         if (remainingSeconds > 0) {
+
             remainingSeconds--;
 
             updateDisplay();
 
-            const timerData = timers.find(
-                item => item.id === timer.id
-            );
+
+            const timerData =
+                timers.find(
+                    item => item.id === timer.id
+                );
+
 
             if (timerData) {
-                timerData.remaining_seconds = remainingSeconds;
+                timerData.remaining_seconds =
+                    remainingSeconds;
             }
 
-            // Сортируем массив
-            timers.sort((a, b) => {
-                return Number(a.remaining_seconds || 0)
-                    - Number(b.remaining_seconds || 0);
-            });
 
-            // Переставляем существующие карточки.
-            // Сам DOM карточки не пересоздаётся.
+            sortTimers();
+
             reorderTimerCards();
 
 
-            // Периодически сохраняем состояние
+            // Сохраняем каждые 5 секунд
             if (remainingSeconds % 5 === 0) {
+
                 try {
-                    await api(`/api/timers/${timer.id}`, {
-                        method: "PUT",
-                        body: JSON.stringify({
-                            running: remainingSeconds > 0 ? 1 : 0,
-                            remaining_seconds: remainingSeconds
-                        })
-                    });
+                    await api(
+                        `/api/timers/${timer.id}`,
+                        {
+                            method: "PUT",
+                            body: JSON.stringify({
+                                running:
+                                    remainingSeconds > 0
+                                        ? 1
+                                        : 0,
+
+                                remaining_seconds:
+                                    remainingSeconds
+                            })
+                        }
+                    );
+
                 } catch (error) {
                     console.error(error);
                 }
             }
 
+
         } else {
+
             running = false;
 
-            const timerData = timers.find(
-                item => item.id === timer.id
-            );
-
-            if (timerData) {
-                timerData.remaining_seconds = 0;
-                timerData.running = 0;
-            }
-
             try {
-                await api(`/api/timers/${timer.id}`, {
-                    method: "PUT",
-                    body: JSON.stringify({
-                        running: 0,
-                        remaining_seconds: 0
-                    })
-                });
+
+                await api(
+                    `/api/timers/${timer.id}`,
+                    {
+                        method: "PUT",
+                        body: JSON.stringify({
+                            running: 0,
+                            remaining_seconds: 0
+                        })
+                    }
+                );
+
             } catch (error) {
                 console.error(error);
             }
-
-            timers.sort((a, b) => {
-                return Number(a.remaining_seconds || 0)
-                    - Number(b.remaining_seconds || 0);
-            });
-
-            reorderTimerCards();
         }
 
     }, 1000);
@@ -646,27 +751,50 @@ function createTimerCard(timer) {
 // =========================
 
 addTimerButton.addEventListener("click", async () => {
+
     if (currentRole === "viewer") {
         return;
     }
 
     try {
+
         await api("/api/timers", {
             method: "POST",
             body: JSON.stringify({
-                system: "",
                 anomaly: "",
+                system: "",
                 description: "",
+
                 days: 0,
                 hours: 0,
                 minutes: 0,
                 seconds: 0,
+
                 remaining_seconds: 0,
                 running: 0
             })
         });
 
+
         await loadTimers();
+
+
+        // Сразу ставим курсор в поле Аномалька
+        const cards =
+            timersGrid.querySelectorAll(".timer-card");
+
+        if (cards.length > 0) {
+
+            const newestCard =
+                cards[cards.length - 1];
+
+            const anomalyInput =
+                newestCard.querySelector(".timer-anomaly");
+
+            if (anomalyInput) {
+                anomalyInput.focus();
+            }
+        }
 
     } catch (error) {
         alert(error.message);
@@ -679,20 +807,30 @@ addTimerButton.addEventListener("click", async () => {
 // =========================
 
 async function updateTimer(id, changes) {
-    try {
-        await api(`/api/timers/${id}`, {
-            method: "PUT",
-            body: JSON.stringify(changes)
-        });
 
-        const timer = timers.find(item => item.id === id);
+    try {
+
+        await api(
+            `/api/timers/${id}`,
+            {
+                method: "PUT",
+                body: JSON.stringify(changes)
+            }
+        );
+
+
+        const timer =
+            timers.find(item => item.id === id);
+
 
         if (timer) {
             Object.assign(timer, changes);
         }
 
     } catch (error) {
+
         console.error(error);
+
         alert(error.message);
     }
 }
@@ -703,61 +841,128 @@ async function updateTimer(id, changes) {
 // =========================
 
 settingsButton.addEventListener("click", () => {
+
     if (currentRole !== "admin") {
         return;
     }
 
     settingsMessage.textContent = "";
+
     adminPasswordInput.value = "";
     userPasswordInput.value = "";
 
+    if (viewerPasswordInput) {
+        viewerPasswordInput.value = "";
+    }
+
     settingsModal.classList.remove("hidden");
-    modalOverlay.classList.remove("hidden");
 });
 
 
 function closeSettings() {
     settingsModal.classList.add("hidden");
-    modalOverlay.classList.add("hidden");
 }
 
 
-closeSettingsButton.addEventListener("click", closeSettings);
-modalOverlay.addEventListener("click", closeSettings);
+closeSettingsButton.addEventListener(
+    "click",
+    closeSettings
+);
 
 
-settingsForm.addEventListener("submit", async (event) => {
-    event.preventDefault();
+cancelSettingsButton.addEventListener(
+    "click",
+    closeSettings
+);
 
-    const adminPassword = adminPasswordInput.value.trim();
-    const userPassword = userPasswordInput.value.trim();
 
-    if (!adminPassword && !userPassword) {
-        settingsMessage.textContent =
-            "Введите хотя бы один новый пароль";
+modalOverlay.addEventListener(
+    "click",
+    closeSettings
+);
 
-        return;
+
+// =========================
+// SAVE PASSWORDS
+// =========================
+
+settingsForm.addEventListener(
+    "submit",
+    async event => {
+
+        event.preventDefault();
+
+        const adminPassword =
+            adminPasswordInput.value.trim();
+
+        const userPassword =
+            userPasswordInput.value.trim();
+
+        const viewerPassword =
+            viewerPasswordInput
+                ? viewerPasswordInput.value.trim()
+                : "";
+
+
+        if (
+            !adminPassword &&
+            !userPassword &&
+            !viewerPassword
+        ) {
+            settingsMessage.textContent =
+                "Введите хотя бы один новый пароль";
+
+            return;
+        }
+
+
+        try {
+
+            const body = {};
+
+            if (adminPassword) {
+                body.adminPassword =
+                    adminPassword;
+            }
+
+            if (userPassword) {
+                body.userPassword =
+                    userPassword;
+            }
+
+            if (viewerPassword) {
+                body.viewerPassword =
+                    viewerPassword;
+            }
+
+
+            await api(
+                "/api/passwords",
+                {
+                    method: "PUT",
+                    body: JSON.stringify(body)
+                }
+            );
+
+
+            settingsMessage.textContent =
+                "Пароли успешно изменены";
+
+
+            adminPasswordInput.value = "";
+            userPasswordInput.value = "";
+
+            if (viewerPasswordInput) {
+                viewerPasswordInput.value = "";
+            }
+
+        } catch (error) {
+
+            settingsMessage.textContent =
+                error.message;
+        }
     }
-
-    try {
-        await api("/api/passwords", {
-            method: "PUT",
-            body: JSON.stringify({
-                adminPassword: adminPassword || undefined,
-                userPassword: userPassword || undefined
-            })
-        });
-
-        settingsMessage.textContent =
-            "Пароли успешно изменены";
-
-        adminPasswordInput.value = "";
-        userPasswordInput.value = "";
-
-    } catch (error) {
-        settingsMessage.textContent = error.message;
-    }
-});
+);
 
 
 // =========================
@@ -765,9 +970,14 @@ settingsForm.addEventListener("submit", async (event) => {
 // =========================
 
 function normalizeNumber(value) {
-    const number = Number.parseInt(value, 10);
 
-    if (!Number.isFinite(number) || number < 0) {
+    const number =
+        Number.parseInt(value, 10);
+
+    if (
+        !Number.isFinite(number) ||
+        number < 0
+    ) {
         return 0;
     }
 
@@ -776,22 +986,39 @@ function normalizeNumber(value) {
 
 
 function formatTime(totalSeconds) {
-    totalSeconds = Math.max(
-        0,
-        Number(totalSeconds) || 0
-    );
 
-    const days = Math.floor(totalSeconds / 86400);
+    totalSeconds =
+        Math.max(
+            0,
+            Number(totalSeconds) || 0
+        );
+
+
+    const days =
+        Math.floor(
+            totalSeconds / 86400
+        );
 
     totalSeconds %= 86400;
 
-    const hours = Math.floor(totalSeconds / 3600);
+
+    const hours =
+        Math.floor(
+            totalSeconds / 3600
+        );
 
     totalSeconds %= 3600;
 
-    const minutes = Math.floor(totalSeconds / 60);
 
-    const seconds = totalSeconds % 60;
+    const minutes =
+        Math.floor(
+            totalSeconds / 60
+        );
+
+
+    const seconds =
+        totalSeconds % 60;
+
 
     return `${days}д ${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
 }
