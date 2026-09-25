@@ -1,33 +1,3 @@
-// ======================================================
-// TIMER BOARD — ОСНОВНАЯ ЛОГИКА
-// ======================================================
-
-// ------------------------------------------------------
-// НАСТРОЙКИ
-// ------------------------------------------------------
-
-// Временные пароли для первого запуска.
-// Позже мы перенесём их на сервер и сделаем нормальную
-// безопасную авторизацию.
-let passwords = {
-    admin: "admin123",
-    user: "user123"
-};
-
-// Текущая роль пользователя
-let currentRole = null;
-
-// Массив таймеров
-let timers = [];
-
-// ID следующего таймера
-let nextTimerId = 1;
-
-
-// ------------------------------------------------------
-// DOM-ЭЛЕМЕНТЫ
-// ------------------------------------------------------
-
 const loginPage = document.getElementById("loginPage");
 const timerPage = document.getElementById("timerPage");
 
@@ -36,776 +6,517 @@ const passwordInput = document.getElementById("passwordInput");
 const loginError = document.getElementById("loginError");
 
 const settingsButton = document.getElementById("settingsButton");
+const timersGrid = document.getElementById("timersGrid");
+const addTimerButton = document.getElementById("addTimerButton");
 
 const settingsModal = document.getElementById("settingsModal");
 const modalOverlay = document.getElementById("modalOverlay");
+const closeSettingsButton = document.getElementById("closeSettingsButton");
 
-const closeSettingsButton =
-    document.getElementById("closeSettingsButton");
+const settingsForm = document.getElementById("settingsForm");
+const adminPasswordInput = document.getElementById("adminPasswordInput");
+const userPasswordInput = document.getElementById("userPasswordInput");
+const settingsMessage = document.getElementById("settingsMessage");
 
-const cancelSettingsButton =
-    document.getElementById("cancelSettingsButton");
-
-const settingsForm =
-    document.getElementById("settingsForm");
-
-const adminPasswordInput =
-    document.getElementById("adminPasswordInput");
-
-const userPasswordInput =
-    document.getElementById("userPasswordInput");
-
-const settingsMessage =
-    document.getElementById("settingsMessage");
-
-const timersGrid =
-    document.getElementById("timersGrid");
-
-const addTimerButton =
-    document.getElementById("addTimerButton");
-
-const timerTemplate =
-    document.getElementById("timerTemplate");
+let currentRole = null;
+let timers = [];
+let intervalId = null;
 
 
-// ======================================================
-// ВХОД
-// ======================================================
+// =========================
+// API
+// =========================
 
-loginForm.addEventListener("submit", function (event) {
+async function api(url, options = {}) {
+    const response = await fetch(url, {
+        credentials: "same-origin",
+        ...options,
+        headers: {
+            "Content-Type": "application/json",
+            ...(options.headers || {})
+        }
+    });
 
+    let data = {};
+
+    try {
+        data = await response.json();
+    } catch {
+        // Ответ может быть пустым
+    }
+
+    if (!response.ok) {
+        throw new Error(data.error || "Ошибка сервера");
+    }
+
+    return data;
+}
+
+
+// =========================
+// SESSION
+// =========================
+
+async function checkSession() {
+    try {
+        const data = await api("/api/session");
+
+        if (data.authenticated) {
+            currentRole = data.role;
+            showTimerPage();
+            await loadTimers();
+        } else {
+            showLoginPage();
+        }
+    } catch {
+        showLoginPage();
+    }
+}
+
+
+function showLoginPage() {
+    loginPage.classList.remove("hidden");
+    timerPage.classList.add("hidden");
+
+    if (settingsButton) {
+        settingsButton.classList.add("hidden");
+    }
+
+    currentRole = null;
+}
+
+
+function showTimerPage() {
+    loginPage.classList.add("hidden");
+    timerPage.classList.remove("hidden");
+
+    if (currentRole === "admin") {
+        settingsButton.classList.remove("hidden");
+    } else {
+        settingsButton.classList.add("hidden");
+    }
+}
+
+
+// =========================
+// LOGIN
+// =========================
+
+loginForm.addEventListener("submit", async (event) => {
     event.preventDefault();
-
-    const enteredPassword =
-        passwordInput.value.trim();
 
     loginError.textContent = "";
 
-    if (!enteredPassword) {
-        loginError.textContent =
-            "Введите пароль.";
+    const password = passwordInput.value.trim();
+
+    if (!password) {
+        loginError.textContent = "Введите пароль";
         return;
     }
 
+    try {
+        const data = await api("/api/login", {
+            method: "POST",
+            body: JSON.stringify({
+                password
+            })
+        });
 
-    // Проверяем пароль администратора
-    if (enteredPassword === passwords.admin) {
+        currentRole = data.role;
 
-        currentRole = "admin";
+        passwordInput.value = "";
 
-        openTimerPage();
+        showTimerPage();
+        await loadTimers();
 
-        settingsButton.classList.remove("hidden");
-
-        return;
+    } catch (error) {
+        loginError.textContent = error.message || "Неверный пароль";
     }
-
-
-    // Проверяем пароль пользователя
-    if (enteredPassword === passwords.user) {
-
-        currentRole = "user";
-
-        openTimerPage();
-
-        settingsButton.classList.add("hidden");
-
-        return;
-    }
-
-
-    // Неверный пароль
-    loginError.textContent =
-        "Неверный пароль.";
-
-    passwordInput.value = "";
-    passwordInput.focus();
 });
 
 
-// ======================================================
-// ОТКРЫТИЕ СТРАНИЦЫ ТАЙМЕРОВ
-// ======================================================
+// =========================
+// TIMERS
+// =========================
 
-function openTimerPage() {
+async function loadTimers() {
+    try {
+        const data = await api("/api/timers");
 
-    loginPage.classList.add("hidden");
+        timers = Array.isArray(data)
+            ? data
+            : (data.timers || []);
 
-    timerPage.classList.remove("hidden");
+        renderTimers();
 
-    renderTimers();
+    } catch (error) {
+        console.error(error);
+        alert("Не удалось загрузить таймеры");
+    }
 }
 
-
-// ======================================================
-// ДОБАВЛЕНИЕ ТАЙМЕРА
-// ======================================================
-
-addTimerButton.addEventListener("click", function () {
-
-    const timer = createTimer();
-
-    timers.push(timer);
-
-    renderTimers();
-});
-
-
-// ======================================================
-// СОЗДАНИЕ ОБЪЕКТА ТАЙМЕРА
-// ======================================================
-
-function createTimer() {
-
-    return {
-
-        id: nextTimerId++,
-
-        description: "",
-
-        days: 0,
-
-        hours: 0,
-
-        minutes: 0,
-
-        seconds: 0,
-
-        remainingSeconds: 0,
-
-        running: false,
-
-        interval: null
-    };
-}
-
-
-// ======================================================
-// ОТОБРАЖЕНИЕ ВСЕХ ТАЙМЕРОВ
-// ======================================================
 
 function renderTimers() {
+    timersGrid.innerHTML = "";
 
-    // Удаляем старые карточки,
-    // но оставляем кнопку "+"
-    const cards =
-        timersGrid.querySelectorAll(".timer-card");
-
-    cards.forEach(function (card) {
-        card.remove();
+    timers.forEach(timer => {
+        const card = createTimerCard(timer);
+        timersGrid.appendChild(card);
     });
 
-
-    timers.forEach(function (timer) {
-
-        createTimerCard(timer);
-
-    });
+    timersGrid.appendChild(addTimerButton);
 }
 
-
-// ======================================================
-// СОЗДАНИЕ КАРТОЧКИ
-// ======================================================
 
 function createTimerCard(timer) {
+    const template = document.getElementById("timerTemplate");
+    const card = template.content.firstElementChild.cloneNode(true);
 
-    const fragment =
-        timerTemplate.content.cloneNode(true);
+    const description = card.querySelector(".timer-description");
+    const display = card.querySelector(".timer-display");
 
-    const card =
-        fragment.querySelector(".timer-card");
+    const daysInput = card.querySelector(".days-input");
+    const hoursInput = card.querySelector(".hours-input");
+    const minutesInput = card.querySelector(".minutes-input");
+    const secondsInput = card.querySelector(".seconds-input");
 
-    const descriptionInput =
-        fragment.querySelector(".timer-description");
+    const startButton = card.querySelector(".start-button");
+    const stopButton = card.querySelector(".stop-button");
+    const deleteButton = card.querySelector(".delete-button");
 
-    const display =
-        fragment.querySelector(".timer-display");
+    description.value = timer.description || "";
 
-    const daysInput =
-        fragment.querySelector(".days-input");
+    daysInput.value = timer.days || 0;
+    hoursInput.value = timer.hours || 0;
+    minutesInput.value = timer.minutes || 0;
+    secondsInput.value = timer.seconds || 0;
 
-    const hoursInput =
-        fragment.querySelector(".hours-input");
+    let remainingSeconds = Number(timer.remaining_seconds || 0);
+    let running = Boolean(timer.running);
 
-    const minutesInput =
-        fragment.querySelector(".minutes-input");
+    function updateDisplay() {
+        display.textContent = formatTime(remainingSeconds);
+    }
 
-    const secondsInput =
-        fragment.querySelector(".seconds-input");
+    updateDisplay();
 
-    const startButton =
-        fragment.querySelector(".start-button");
-
-    const stopButton =
-        fragment.querySelector(".stop-button");
-
-    const deleteButton =
-        fragment.querySelector(".delete-button");
-
-
-    // ------------------------------------------
-    // Заполняем значения
-    // ------------------------------------------
-
-    descriptionInput.value =
-        timer.description;
-
-    daysInput.value =
-        timer.days;
-
-    hoursInput.value =
-        timer.hours;
-
-    minutesInput.value =
-        timer.minutes;
-
-    secondsInput.value =
-        timer.seconds;
+    // Сохраняем описание
+    description.addEventListener("change", async () => {
+        await updateTimer(timer.id, {
+            description: description.value
+        });
+    });
 
 
-    updateTimerDisplay(
-        timer,
-        display
-    );
+    // Сохраняем продолжительность
+    async function saveDuration() {
+        const days = normalizeNumber(daysInput.value);
+        const hours = normalizeNumber(hoursInput.value);
+        const minutes = normalizeNumber(minutesInput.value);
+        const seconds = normalizeNumber(secondsInput.value);
+
+        remainingSeconds =
+            days * 86400 +
+            hours * 3600 +
+            minutes * 60 +
+            seconds;
+
+        await updateTimer(timer.id, {
+            days,
+            hours,
+            minutes,
+            seconds,
+            remaining_seconds: remainingSeconds
+        });
+
+        updateDisplay();
+    }
 
 
-    // ------------------------------------------
-    // Описание
-    // ------------------------------------------
+    daysInput.addEventListener("change", saveDuration);
+    hoursInput.addEventListener("change", saveDuration);
+    minutesInput.addEventListener("change", saveDuration);
+    secondsInput.addEventListener("change", saveDuration);
 
-    descriptionInput.addEventListener(
-        "input",
-        function () {
 
-            timer.description =
-                descriptionInput.value;
-
+    // START
+    startButton.addEventListener("click", async () => {
+        if (remainingSeconds <= 0) {
+            await saveDuration();
         }
-    );
 
-
-    // ------------------------------------------
-    // Изменение времени
-    // ------------------------------------------
-
-    function updateTimerSettings() {
-
-        if (timer.running) {
+        if (remainingSeconds <= 0) {
             return;
         }
 
-        timer.days =
-            Math.max(
-                0,
-                parseInt(daysInput.value) || 0
-            );
-
-        timer.hours =
-            Math.min(
-                23,
-                Math.max(
-                    0,
-                    parseInt(hoursInput.value) || 0
-                )
-            );
-
-        timer.minutes =
-            Math.min(
-                59,
-                Math.max(
-                    0,
-                    parseInt(minutesInput.value) || 0
-                )
-            );
-
-        timer.seconds =
-            Math.min(
-                59,
-                Math.max(
-                    0,
-                    parseInt(secondsInput.value) || 0
-                )
-            );
-
-
-        timer.remainingSeconds =
-            convertToSeconds(timer);
-
-
-        updateTimerDisplay(
-            timer,
-            display
-        );
-    }
-
-
-    daysInput.addEventListener(
-        "input",
-        updateTimerSettings
-    );
-
-    hoursInput.addEventListener(
-        "input",
-        updateTimerSettings
-    );
-
-    minutesInput.addEventListener(
-        "input",
-        updateTimerSettings
-    );
-
-    secondsInput.addEventListener(
-        "input",
-        updateTimerSettings
-    );
-
-
-    // ------------------------------------------
-    // СТАРТ
-    // ------------------------------------------
-
-    startButton.addEventListener(
-        "click",
-        function () {
-
-            startTimer(
-                timer,
-                display
-            );
-
-        }
-    );
-
-
-    // ------------------------------------------
-    // СТОП
-    // ------------------------------------------
-
-    stopButton.addEventListener(
-        "click",
-        function () {
-
-            stopTimer(
-                timer
-            );
-
-        }
-    );
-
-
-    // ------------------------------------------
-    // УДАЛЕНИЕ
-    // ------------------------------------------
-
-    deleteButton.addEventListener(
-        "click",
-        function () {
-
-            deleteTimer(
-                timer.id
-            );
-
-        }
-    );
-
-
-    timersGrid.insertBefore(
-        card,
-        addTimerButton
-    );
-}
-
-
-// ======================================================
-// ПРЕОБРАЗОВАНИЕ ДЕНЬ/ЧАС/МИН/СЕК → СЕКУНДЫ
-// ======================================================
-
-function convertToSeconds(timer) {
-
-    return (
-        timer.days * 24 * 60 * 60 +
-        timer.hours * 60 * 60 +
-        timer.minutes * 60 +
-        timer.seconds
-    );
-}
-
-
-// ======================================================
-// ОБРАТНОЕ ПРЕОБРАЗОВАНИЕ СЕКУНД
-// ======================================================
-
-function secondsToTime(totalSeconds) {
-
-    const days =
-        Math.floor(
-            totalSeconds / 86400
-        );
-
-    totalSeconds %= 86400;
-
-
-    const hours =
-        Math.floor(
-            totalSeconds / 3600
-        );
-
-    totalSeconds %= 3600;
-
-
-    const minutes =
-        Math.floor(
-            totalSeconds / 60
-        );
-
-    const seconds =
-        totalSeconds % 60;
-
-
-    return {
-        days,
-        hours,
-        minutes,
-        seconds
-    };
-}
-
-
-// ======================================================
-// ФОРМАТИРОВАНИЕ ЧИСЛА
-// ======================================================
-
-function pad(number) {
-
-    return String(number)
-        .padStart(2, "0");
-}
-
-
-// ======================================================
-// ОТОБРАЖЕНИЕ ВРЕМЕНИ
-// ======================================================
-
-function updateTimerDisplay(
-    timer,
-    display
-) {
-
-    const time =
-        secondsToTime(
-            timer.remainingSeconds
-        );
-
-
-    display.textContent =
-        `${pad(time.days)}:` +
-        `${pad(time.hours)}:` +
-        `${pad(time.minutes)}:` +
-        `${pad(time.seconds)}`;
-}
-
-
-// ======================================================
-// СТАРТ ТАЙМЕРА
-// ======================================================
-
-function startTimer(
-    timer,
-    display
-) {
-
-    // Уже работает
-    if (timer.running) {
-        return;
-    }
-
-
-    // Если таймер ещё ни разу не запускался,
-    // берём значение из полей
-    if (
-        timer.remainingSeconds <= 0
-    ) {
-
-        timer.remainingSeconds =
-            convertToSeconds(timer);
-    }
-
-
-    // Нечего запускать
-    if (
-        timer.remainingSeconds <= 0
-    ) {
-
-        return;
-    }
-
-
-    timer.running = true;
-
-
-    timer.interval =
-        setInterval(
-            function () {
-
-                if (
-                    timer.remainingSeconds <= 0
-                ) {
-
-                    stopTimer(timer);
-
-                    timer.remainingSeconds = 0;
-
-                    updateTimerDisplay(
-                        timer,
-                        display
-                    );
-
-                    return;
-                }
-
-
-                timer.remainingSeconds--;
-
-
-                updateTimerDisplay(
-                    timer,
-                    display
+        try {
+            const data = await api(`/api/timers/${timer.id}`, {
+                method: "PUT",
+                body: JSON.stringify({
+                    running: 1,
+                    remaining_seconds: remainingSeconds
+                })
+            });
+
+            if (data.timer) {
+                remainingSeconds = Number(
+                    data.timer.remaining_seconds ?? remainingSeconds
                 );
-
-            },
-            1000
-        );
-}
-
-
-// ======================================================
-// СТОП ТАЙМЕРА
-// ======================================================
-
-function stopTimer(timer) {
-
-    if (timer.interval !== null) {
-
-        clearInterval(
-            timer.interval
-        );
-
-        timer.interval = null;
-    }
-
-
-    timer.running = false;
-}
-
-
-// ======================================================
-// УДАЛЕНИЕ ТАЙМЕРА
-// ======================================================
-
-function deleteTimer(timerId) {
-
-    const timer =
-        timers.find(
-            function (item) {
-                return item.id === timerId;
             }
-        );
+
+            running = true;
+            updateDisplay();
+
+        } catch (error) {
+            alert(error.message);
+        }
+    });
 
 
-    if (!timer) {
-        return;
-    }
+    // STOP
+    stopButton.addEventListener("click", async () => {
+        try {
+            const data = await api(`/api/timers/${timer.id}`, {
+                method: "PUT",
+                body: JSON.stringify({
+                    running: 0,
+                    remaining_seconds: remainingSeconds
+                })
+            });
 
-
-    stopTimer(timer);
-
-
-    timers =
-        timers.filter(
-            function (item) {
-                return item.id !== timerId;
+            if (data.timer) {
+                remainingSeconds = Number(
+                    data.timer.remaining_seconds ?? remainingSeconds
+                );
             }
-        );
+
+            running = false;
+            updateDisplay();
+
+        } catch (error) {
+            alert(error.message);
+        }
+    });
 
 
-    renderTimers();
-}
-
-
-// ======================================================
-// НАСТРОЙКИ
-// ======================================================
-
-settingsButton.addEventListener(
-    "click",
-    function () {
-
-        if (currentRole !== "admin") {
+    // DELETE
+    deleteButton.addEventListener("click", async () => {
+        if (!confirm("Удалить этот таймер?")) {
             return;
         }
 
-        openSettings();
+        try {
+            await api(`/api/timers/${timer.id}`, {
+                method: "DELETE"
+            });
 
+            await loadTimers();
+
+        } catch (error) {
+            alert(error.message);
+        }
+    });
+
+
+    // Локальный отсчёт
+    const localInterval = setInterval(async () => {
+        if (!document.body.contains(card)) {
+            clearInterval(localInterval);
+            return;
+        }
+
+        if (!running) {
+            return;
+        }
+
+        if (remainingSeconds > 0) {
+            remainingSeconds--;
+            updateDisplay();
+
+            // Периодически сохраняем состояние
+            if (remainingSeconds % 5 === 0) {
+                try {
+                    await api(`/api/timers/${timer.id}`, {
+                        method: "PUT",
+                        body: JSON.stringify({
+                            running: remainingSeconds > 0 ? 1 : 0,
+                            remaining_seconds: remainingSeconds
+                        })
+                    });
+                } catch (error) {
+                    console.error(error);
+                }
+            }
+        } else {
+            running = false;
+
+            try {
+                await api(`/api/timers/${timer.id}`, {
+                    method: "PUT",
+                    body: JSON.stringify({
+                        running: 0,
+                        remaining_seconds: 0
+                    })
+                });
+            } catch (error) {
+                console.error(error);
+            }
+        }
+    }, 1000);
+
+
+    return card;
+}
+
+
+// =========================
+// ADD TIMER
+// =========================
+
+addTimerButton.addEventListener("click", async () => {
+    try {
+        await api("/api/timers", {
+            method: "POST",
+            body: JSON.stringify({
+                description: "",
+                days: 0,
+                hours: 0,
+                minutes: 0,
+                seconds: 0,
+                remaining_seconds: 0,
+                running: 0
+            })
+        });
+
+        await loadTimers();
+
+    } catch (error) {
+        alert(error.message);
     }
-);
+});
 
 
-// ======================================================
-// ОТКРЫТЬ НАСТРОЙКИ
-// ======================================================
+// =========================
+// UPDATE TIMER
+// =========================
 
-function openSettings() {
+async function updateTimer(id, changes) {
+    try {
+        await api(`/api/timers/${id}`, {
+            method: "PUT",
+            body: JSON.stringify(changes)
+        });
+
+        const timer = timers.find(item => item.id === id);
+
+        if (timer) {
+            Object.assign(timer, changes);
+        }
+
+    } catch (error) {
+        console.error(error);
+        alert(error.message);
+    }
+}
+
+
+// =========================
+// SETTINGS
+// =========================
+
+settingsButton.addEventListener("click", () => {
+    if (currentRole !== "admin") {
+        return;
+    }
 
     settingsMessage.textContent = "";
-
     adminPasswordInput.value = "";
     userPasswordInput.value = "";
 
     settingsModal.classList.remove("hidden");
+    modalOverlay.classList.remove("hidden");
+});
 
-    adminPasswordInput.focus();
-}
-
-
-// ======================================================
-// ЗАКРЫТЬ НАСТРОЙКИ
-// ======================================================
 
 function closeSettings() {
-
     settingsModal.classList.add("hidden");
-
-    settingsMessage.textContent = "";
+    modalOverlay.classList.add("hidden");
 }
 
 
-// Крестик
-closeSettingsButton.addEventListener(
-    "click",
-    closeSettings
-);
+closeSettingsButton.addEventListener("click", closeSettings);
+modalOverlay.addEventListener("click", closeSettings);
 
 
-// Отмена
-cancelSettingsButton.addEventListener(
-    "click",
-    closeSettings
-);
+settingsForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
 
+    const adminPassword = adminPasswordInput.value.trim();
+    const userPassword = userPasswordInput.value.trim();
 
-// Клик по затемнённому фону
-modalOverlay.addEventListener(
-    "click",
-    closeSettings
-);
+    if (!adminPassword && !userPassword) {
+        settingsMessage.textContent = "Введите хотя бы один новый пароль";
+        return;
+    }
 
+    try {
+        await api("/api/passwords", {
+            method: "PUT",
+            body: JSON.stringify({
+                adminPassword: adminPassword || undefined,
+                userPassword: userPassword || undefined
+            })
+        });
 
-// ======================================================
-// СОХРАНЕНИЕ НОВЫХ ПАРОЛЕЙ
-// ======================================================
-
-settingsForm.addEventListener(
-    "submit",
-    function (event) {
-
-        event.preventDefault();
-
-
-        if (currentRole !== "admin") {
-            return;
-        }
-
-
-        const newAdminPassword =
-            adminPasswordInput.value.trim();
-
-        const newUserPassword =
-            userPasswordInput.value.trim();
-
-
-        // Можно менять только один пароль.
-        // Пустое поле означает "не менять".
-        if (
-            newAdminPassword.length === 0 &&
-            newUserPassword.length === 0
-        ) {
-
-            settingsMessage.textContent =
-                "Введите хотя бы один новый пароль.";
-
-            settingsMessage.style.color =
-                "#dc2626";
-
-            return;
-        }
-
-
-        // Нельзя сделать одинаковые пароли
-        const resultingAdminPassword =
-            newAdminPassword ||
-            passwords.admin;
-
-        const resultingUserPassword =
-            newUserPassword ||
-            passwords.user;
-
-
-        if (
-            resultingAdminPassword ===
-            resultingUserPassword
-        ) {
-
-            settingsMessage.textContent =
-                "Пароли администратора и пользователя должны отличаться.";
-
-            settingsMessage.style.color =
-                "#dc2626";
-
-            return;
-        }
-
-
-        // Сохраняем
-        if (newAdminPassword) {
-
-            passwords.admin =
-                newAdminPassword;
-        }
-
-
-        if (newUserPassword) {
-
-            passwords.user =
-                newUserPassword;
-        }
-
-
-        settingsMessage.textContent =
-            "Пароли успешно изменены.";
-
-        settingsMessage.style.color =
-            "#16a34a";
-
+        settingsMessage.textContent = "Пароли успешно изменены";
 
         adminPasswordInput.value = "";
         userPasswordInput.value = "";
+
+    } catch (error) {
+        settingsMessage.textContent = error.message;
     }
-);
+});
 
 
-// ======================================================
-// ЗАПУСК
-// ======================================================
+// =========================
+// HELPERS
+// =========================
 
-console.log(
-    "Timer Board запущен."
-);
+function normalizeNumber(value) {
+    const number = Number.parseInt(value, 10);
 
-console.log(
-    "Тестовый пароль администратора: admin123"
-);
+    if (!Number.isFinite(number) || number < 0) {
+        return 0;
+    }
 
-console.log(
-    "Тестовый пароль пользователя: user123"
-);
+    return number;
+}
+
+
+function formatTime(totalSeconds) {
+    totalSeconds = Math.max(0, Number(totalSeconds) || 0);
+
+    const days = Math.floor(totalSeconds / 86400);
+    totalSeconds %= 86400;
+
+    const hours = Math.floor(totalSeconds / 3600);
+    totalSeconds %= 3600;
+
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+
+    return `${days}д ${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
+}
+
+
+function pad(number) {
+    return String(number).padStart(2, "0");
+}
+
+
+// =========================
+// START
+// =========================
+
+checkSession();
