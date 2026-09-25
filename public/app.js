@@ -221,6 +221,23 @@ async function loadTimers() {
     }
 }
 
+function reorderTimerCards() {
+    const cardMap = new Map(
+        Array.from(timersGrid.querySelectorAll(".timer-card"))
+            .map(card => [
+                Number(card.dataset.timerId),
+                card
+            ])
+    );
+
+    for (const timer of timers) {
+        const card = cardMap.get(Number(timer.id));
+
+        if (card) {
+            timersGrid.insertBefore(card, addTimerButton);
+        }
+    }
+}
 
 function renderTimers() {
     timersGrid.innerHTML = "";
@@ -238,6 +255,8 @@ function createTimerCard(timer) {
     const template = document.getElementById("timerTemplate");
     const card = template.content.firstElementChild.cloneNode(true);
 
+    card.dataset.timerId = String(timer.id);
+    
     const description = card.querySelector(".timer-description");
     const display = card.querySelector(".timer-display");
 
@@ -410,6 +429,8 @@ function createTimerCard(timer) {
             - Number(b.remaining_seconds || 0);
     });
 
+reorderTimerCards();
+           
     // Периодически сохраняем состояние
             if (remainingSeconds % 5 === 0) {
                 try {
