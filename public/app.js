@@ -19,15 +19,23 @@ const cancelSettingsButton =
     document.getElementById("cancelSettingsButton");
 
 const settingsForm = document.getElementById("settingsForm");
+
 const adminPasswordInput =
     document.getElementById("adminPasswordInput");
+
 const userPasswordInput =
     document.getElementById("userPasswordInput");
+
+const viewerPasswordInput =
+    document.getElementById("viewerPasswordInput");
+
 const settingsMessage =
     document.getElementById("settingsMessage");
 
+
 let currentRole = null;
 let timers = [];
+
 
 // Таймеры отложенного сохранения текста.
 const textSaveTimers = new Map();
@@ -41,6 +49,7 @@ const textSavePromises = new Map();
 // =========================
 
 async function api(url, options = {}) {
+
     const response = await fetch(url, {
         credentials: "same-origin",
         ...options,
@@ -50,7 +59,9 @@ async function api(url, options = {}) {
         }
     });
 
+
     let data = {};
+
 
     try {
         data = await response.json();
@@ -58,11 +69,13 @@ async function api(url, options = {}) {
         // Ответ может быть пустым.
     }
 
+
     if (!response.ok) {
         throw new Error(
             data.error || "Ошибка сервера"
         );
     }
+
 
     return data;
 }
@@ -73,45 +86,90 @@ async function api(url, options = {}) {
 // =========================
 
 async function checkSession() {
+
     try {
-        const data = await api("/api/session");
+
+        const data =
+            await api("/api/session");
+
 
         if (data.authenticated) {
-            currentRole = data.role;
+
+            currentRole =
+                data.role;
 
             showTimerPage();
 
             await loadTimers();
+
         } else {
+
             showLoginPage();
+
         }
 
     } catch {
+
         showLoginPage();
+
     }
 }
 
 
 function showLoginPage() {
+
     loginPage.classList.remove("hidden");
     timerPage.classList.add("hidden");
+
 
     if (settingsButton) {
         settingsButton.classList.add("hidden");
     }
+
+
+    if (addTimerButton) {
+        addTimerButton.classList.remove("hidden");
+    }
+
 
     currentRole = null;
 }
 
 
 function showTimerPage() {
+
     loginPage.classList.add("hidden");
     timerPage.classList.remove("hidden");
 
+
+    // Настройки видит только admin.
     if (currentRole === "admin") {
-        settingsButton.classList.remove("hidden");
+
+        settingsButton.classList.remove(
+            "hidden"
+        );
+
     } else {
-        settingsButton.classList.add("hidden");
+
+        settingsButton.classList.add(
+            "hidden"
+        );
+    }
+
+
+    // Кнопка добавления таймера
+    // недоступна Viewer.
+    if (currentRole === "viewer") {
+
+        addTimerButton.classList.add(
+            "hidden"
+        );
+
+    } else {
+
+        addTimerButton.classList.remove(
+            "hidden"
+        );
     }
 }
 
@@ -120,31 +178,45 @@ function showTimerPage() {
 // LOGOUT
 // =========================
 
-logoutButton.addEventListener("click", async () => {
-    try {
-        // Перед выходом обязательно сохраняем
-        // незавершённый ввод.
-        await flushAllTextSaves();
+logoutButton.addEventListener(
+    "click",
+    async () => {
 
-        await api("/api/logout", {
-            method: "POST"
-        });
+        try {
 
-        closeSettings();
-        showLoginPage();
+            // Перед выходом обязательно сохраняем
+            // незавершённый ввод.
+            await flushAllTextSaves();
 
-        passwordInput.value = "";
-        loginError.textContent = "";
 
-        passwordInput.focus();
+            await api(
+                "/api/logout",
+                {
+                    method: "POST"
+                }
+            );
 
-    } catch (error) {
-        alert(
-            error.message ||
-            "Не удалось выйти"
-        );
+
+            closeSettings();
+
+            showLoginPage();
+
+
+            passwordInput.value = "";
+            loginError.textContent = "";
+
+
+            passwordInput.focus();
+
+        } catch (error) {
+
+            alert(
+                error.message ||
+                "Не удалось выйти"
+            );
+        }
     }
-});
+);
 
 
 // =========================
@@ -152,14 +224,18 @@ logoutButton.addEventListener("click", async () => {
 // =========================
 
 function updateThemeButton() {
+
     if (
         document.body.classList.contains(
             "light-theme"
         )
     ) {
+
         themeButton.textContent =
             "🌙 Тёмная тема";
+
     } else {
+
         themeButton.textContent =
             "☀️ Светлая тема";
     }
@@ -167,36 +243,48 @@ function updateThemeButton() {
 
 
 function applySavedTheme() {
+
     const savedTheme =
         localStorage.getItem("theme");
 
+
     if (savedTheme === "light") {
+
         document.body.classList.add(
             "light-theme"
         );
+
     } else {
+
         document.body.classList.remove(
             "light-theme"
         );
     }
 
+
     updateThemeButton();
 }
 
 
-themeButton.addEventListener("click", () => {
-    const isLight =
-        document.body.classList.toggle(
-            "light-theme"
+themeButton.addEventListener(
+    "click",
+    () => {
+
+        const isLight =
+            document.body.classList.toggle(
+                "light-theme"
+            );
+
+
+        localStorage.setItem(
+            "theme",
+            isLight ? "light" : "dark"
         );
 
-    localStorage.setItem(
-        "theme",
-        isLight ? "light" : "dark"
-    );
 
-    updateThemeButton();
-});
+        updateThemeButton();
+    }
+);
 
 
 applySavedTheme();
@@ -212,39 +300,52 @@ loginForm.addEventListener(
 
         event.preventDefault();
 
+
         loginError.textContent = "";
+
 
         const password =
             passwordInput.value.trim();
 
+
         if (!password) {
+
             loginError.textContent =
                 "Введите пароль";
 
             return;
         }
 
+
         try {
-            const data = await api(
-                "/api/login",
-                {
-                    method: "POST",
 
-                    body: JSON.stringify({
-                        password
-                    })
-                }
-            );
+            const data =
+                await api(
+                    "/api/login",
+                    {
+                        method: "POST",
 
-            currentRole = data.role;
+                        body: JSON.stringify({
+                            password
+                        })
+                    }
+                );
+
+
+            currentRole =
+                data.role;
+
 
             passwordInput.value = "";
 
+
             showTimerPage();
+
 
             await loadTimers();
 
         } catch (error) {
+
             loginError.textContent =
                 error.message ||
                 "Неверный пароль";
@@ -258,25 +359,33 @@ loginForm.addEventListener(
 // =========================
 
 async function loadTimers() {
+
     try {
+
         // Очень важно:
         // перед удалением старых карточек ждём,
         // пока текст всех полей будет сохранён.
         await flushAllTextSaves();
 
+
         const data =
             await api("/api/timers");
 
-        timers = Array.isArray(data)
-            ? data
-            : (data.timers || []);
+
+        timers =
+            Array.isArray(data)
+                ? data
+                : (data.timers || []);
+
 
         sortTimers();
 
         renderTimers();
 
     } catch (error) {
+
         console.error(error);
+
 
         alert(
             "Не удалось загрузить таймеры"
@@ -290,12 +399,15 @@ async function loadTimers() {
 // =========================
 
 function sortTimers() {
+
     timers.sort((a, b) => {
+
         return Number(
             a.remaining_seconds || 0
         ) - Number(
             b.remaining_seconds || 0
         );
+
     });
 }
 
@@ -305,8 +417,10 @@ function sortTimers() {
 // =========================
 
 function reorderTimerCards() {
+
     const activeElement =
         document.activeElement;
+
 
     // Пока пользователь печатает,
     // не двигаем карточки.
@@ -321,28 +435,38 @@ function reorderTimerCards() {
         return;
     }
 
-    const cards = Array.from(
-        timersGrid.querySelectorAll(
-            ".timer-card"
-        )
-    );
 
-    const cardMap = new Map();
+    const cards =
+        Array.from(
+            timersGrid.querySelectorAll(
+                ".timer-card"
+            )
+        );
+
+
+    const cardMap =
+        new Map();
+
 
     for (const card of cards) {
+
         cardMap.set(
             Number(card.dataset.timerId),
             card
         );
     }
 
+
     for (const timer of timers) {
+
         const card =
             cardMap.get(
                 Number(timer.id)
             );
 
+
         if (card) {
+
             timersGrid.insertBefore(
                 card,
                 addTimerButton
@@ -357,18 +481,34 @@ function reorderTimerCards() {
 // =========================
 
 function renderTimers() {
+
     timersGrid.innerHTML = "";
 
+
     timers.forEach(timer => {
+
         const card =
             createTimerCard(timer);
 
+
         timersGrid.appendChild(card);
+
     });
+
 
     timersGrid.appendChild(
         addTimerButton
     );
+
+
+    // После повторного render снова
+    // применяем ограничения Viewer.
+    if (currentRole === "viewer") {
+
+        addTimerButton.classList.add(
+            "hidden"
+        );
+    }
 }
 
 
@@ -377,11 +517,23 @@ function renderTimers() {
 // =========================
 
 function scheduleTextSave(timer) {
-    const timerId = timer.id;
+
+    // Viewer не может редактировать текст.
+    if (currentRole === "viewer") {
+        return;
+    }
+
+
+    const timerId =
+        timer.id;
+
 
     // Сразу обновляем локальные данные.
     timer.system =
-        timer._cardSystemValue ?? timer.system ?? "";
+        timer._cardSystemValue ??
+        timer.system ??
+        "";
+
 
     timer.description =
         timer._cardDescriptionValue ??
@@ -392,30 +544,41 @@ function scheduleTextSave(timer) {
     const existingTimeout =
         textSaveTimers.get(timerId);
 
+
     if (existingTimeout) {
-        clearTimeout(existingTimeout);
+
+        clearTimeout(
+            existingTimeout
+        );
     }
 
 
     const timeoutId =
-        setTimeout(async () => {
+        setTimeout(
+            async () => {
 
-            textSaveTimers.delete(
-                timerId
-            );
-
-            try {
-                await saveTextFields(
+                textSaveTimers.delete(
                     timerId
                 );
-            } catch (error) {
-                console.error(
-                    "Ошибка сохранения текста:",
-                    error
-                );
-            }
 
-        }, 400);
+
+                try {
+
+                    await saveTextFields(
+                        timerId
+                    );
+
+                } catch (error) {
+
+                    console.error(
+                        "Ошибка сохранения текста:",
+                        error
+                    );
+                }
+
+            },
+            400
+        );
 
 
     textSaveTimers.set(
@@ -426,10 +589,17 @@ function scheduleTextSave(timer) {
 
 
 async function saveTextFields(timerId) {
+
+    if (currentRole === "viewer") {
+        return;
+    }
+
+
     const timer =
         timers.find(
             item => item.id === timerId
         );
+
 
     if (!timer) {
         return;
@@ -438,6 +608,7 @@ async function saveTextFields(timerId) {
 
     let systemValue =
         timer.system || "";
+
 
     let descriptionValue =
         timer.description || "";
@@ -450,22 +621,28 @@ async function saveTextFields(timerId) {
 
 
     if (card) {
+
         const systemInput =
             card.querySelector(
                 ".timer-system"
             );
+
 
         const descriptionInput =
             card.querySelector(
                 ".timer-description"
             );
 
+
         if (systemInput) {
+
             systemValue =
                 systemInput.value;
         }
 
+
         if (descriptionInput) {
+
             descriptionValue =
                 descriptionInput.value;
         }
@@ -474,6 +651,7 @@ async function saveTextFields(timerId) {
 
     timer.system =
         systemValue;
+
 
     timer.description =
         descriptionValue;
@@ -501,6 +679,7 @@ async function saveTextFields(timerId) {
 
                 timer.description =
                     descriptionValue;
+
             })
             .finally(() => {
 
@@ -509,10 +688,12 @@ async function saveTextFields(timerId) {
                         timerId
                     );
 
+
                 if (
                     currentPromise ===
                     savePromise
                 ) {
+
                     textSavePromises.delete(
                         timerId
                     );
@@ -532,6 +713,11 @@ async function saveTextFields(timerId) {
 
 async function flushTextSave(timerId) {
 
+    if (currentRole === "viewer") {
+        return;
+    }
+
+
     const timeoutId =
         textSaveTimers.get(
             timerId
@@ -539,17 +725,25 @@ async function flushTextSave(timerId) {
 
 
     if (timeoutId) {
-        clearTimeout(timeoutId);
+
+        clearTimeout(
+            timeoutId
+        );
+
 
         textSaveTimers.delete(
             timerId
         );
 
+
         try {
+
             await saveTextFields(
                 timerId
             );
+
         } catch (error) {
+
             console.error(
                 "Ошибка сохранения текста:",
                 error
@@ -565,9 +759,13 @@ async function flushTextSave(timerId) {
 
 
     if (pendingPromise) {
+
         try {
+
             await pendingPromise;
+
         } catch (error) {
+
             console.error(
                 "Ошибка сохранения текста:",
                 error
@@ -578,6 +776,12 @@ async function flushTextSave(timerId) {
 
 
 async function flushAllTextSaves() {
+
+    if (currentRole === "viewer") {
+        return;
+    }
+
+
     const timerIds =
         new Set([
             ...textSaveTimers.keys(),
@@ -586,6 +790,7 @@ async function flushAllTextSaves() {
 
 
     for (const timerId of timerIds) {
+
         await flushTextSave(
             timerId
         );
@@ -624,45 +829,54 @@ function createTimerCard(timer) {
             ".timer-system"
         );
 
+
     const description =
         card.querySelector(
             ".timer-description"
         );
+
 
     const display =
         card.querySelector(
             ".timer-display"
         );
 
+
     const daysInput =
         card.querySelector(
             ".days-input"
         );
+
 
     const hoursInput =
         card.querySelector(
             ".hours-input"
         );
 
+
     const minutesInput =
         card.querySelector(
             ".minutes-input"
         );
+
 
     const secondsInput =
         card.querySelector(
             ".seconds-input"
         );
 
+
     const startButton =
         card.querySelector(
             ".start-button"
         );
 
+
     const stopButton =
         card.querySelector(
             ".stop-button"
         );
+
 
     const deleteButton =
         card.querySelector(
@@ -677,17 +891,22 @@ function createTimerCard(timer) {
     system.value =
         timer.system || "";
 
+
     description.value =
         timer.description || "";
+
 
     daysInput.value =
         timer.days || 0;
 
+
     hoursInput.value =
         timer.hours || 0;
 
+
     minutesInput.value =
         timer.minutes || 0;
+
 
     secondsInput.value =
         timer.seconds || 0;
@@ -698,8 +917,35 @@ function createTimerCard(timer) {
             timer.remaining_seconds || 0
         );
 
+
     let running =
         Boolean(timer.running);
+
+
+    // =========================
+    // VIEWER MODE
+    // =========================
+
+    if (currentRole === "viewer") {
+
+        // Текст можно видеть,
+        // но нельзя менять.
+        system.readOnly = true;
+        description.readOnly = true;
+
+
+        // Время нельзя менять.
+        daysInput.disabled = true;
+        hoursInput.disabled = true;
+        minutesInput.disabled = true;
+        secondsInput.disabled = true;
+
+
+        // Управление таймером недоступно.
+        startButton.disabled = true;
+        stopButton.disabled = true;
+        deleteButton.disabled = true;
+    }
 
 
     // =========================
@@ -707,6 +953,7 @@ function createTimerCard(timer) {
     // =========================
 
     function updateDisplay() {
+
         display.textContent =
             formatTime(
                 remainingSeconds
@@ -725,11 +972,18 @@ function createTimerCard(timer) {
         "input",
         () => {
 
+            if (currentRole === "viewer") {
+                return;
+            }
+
+
             timer.system =
                 system.value;
 
+
             timer._cardSystemValue =
                 system.value;
+
 
             scheduleTextSave(timer);
         }
@@ -740,17 +994,27 @@ function createTimerCard(timer) {
         "blur",
         async () => {
 
+            if (currentRole === "viewer") {
+                return;
+            }
+
+
             timer.system =
                 system.value;
+
 
             timer._cardSystemValue =
                 system.value;
 
+
             try {
+
                 await flushTextSave(
                     timer.id
                 );
+
             } catch (error) {
+
                 console.error(error);
             }
         }
@@ -765,11 +1029,18 @@ function createTimerCard(timer) {
         "input",
         () => {
 
+            if (currentRole === "viewer") {
+                return;
+            }
+
+
             timer.description =
                 description.value;
 
+
             timer._cardDescriptionValue =
                 description.value;
+
 
             scheduleTextSave(timer);
         }
@@ -780,17 +1051,27 @@ function createTimerCard(timer) {
         "blur",
         async () => {
 
+            if (currentRole === "viewer") {
+                return;
+            }
+
+
             timer.description =
                 description.value;
+
 
             timer._cardDescriptionValue =
                 description.value;
 
+
             try {
+
                 await flushTextSave(
                     timer.id
                 );
+
             } catch (error) {
+
                 console.error(error);
             }
         }
@@ -803,20 +1084,28 @@ function createTimerCard(timer) {
 
     async function saveDuration() {
 
+        if (currentRole === "viewer") {
+            return;
+        }
+
+
         const days =
             normalizeNumber(
                 daysInput.value
             );
+
 
         const hours =
             normalizeNumber(
                 hoursInput.value
             );
 
+
         const minutes =
             normalizeNumber(
                 minutesInput.value
             );
+
 
         const seconds =
             normalizeNumber(
@@ -857,15 +1146,18 @@ function createTimerCard(timer) {
         saveDuration
     );
 
+
     hoursInput.addEventListener(
         "change",
         saveDuration
     );
 
+
     minutesInput.addEventListener(
         "change",
         saveDuration
     );
+
 
     secondsInput.addEventListener(
         "change",
@@ -881,6 +1173,11 @@ function createTimerCard(timer) {
         "click",
         async () => {
 
+            if (currentRole === "viewer") {
+                return;
+            }
+
+
             // Перед действием сохраняем текст.
             await flushTextSave(
                 timer.id
@@ -890,6 +1187,7 @@ function createTimerCard(timer) {
             if (remainingSeconds <= 0) {
                 await saveDuration();
             }
+
 
             if (remainingSeconds <= 0) {
                 return;
@@ -916,6 +1214,7 @@ function createTimerCard(timer) {
 
 
                 if (data.timer) {
+
                     remainingSeconds =
                         Number(
                             data.timer
@@ -927,10 +1226,13 @@ function createTimerCard(timer) {
 
                 running = true;
 
+
                 timer.remaining_seconds =
                     remainingSeconds;
 
+
                 timer.running = 1;
+
 
                 updateDisplay();
 
@@ -939,6 +1241,7 @@ function createTimerCard(timer) {
                 reorderTimerCards();
 
             } catch (error) {
+
                 alert(error.message);
             }
         }
@@ -952,6 +1255,11 @@ function createTimerCard(timer) {
     stopButton.addEventListener(
         "click",
         async () => {
+
+            if (currentRole === "viewer") {
+                return;
+            }
+
 
             await flushTextSave(
                 timer.id
@@ -978,6 +1286,7 @@ function createTimerCard(timer) {
 
 
                 if (data.timer) {
+
                     remainingSeconds =
                         Number(
                             data.timer
@@ -989,10 +1298,13 @@ function createTimerCard(timer) {
 
                 running = false;
 
+
                 timer.remaining_seconds =
                     remainingSeconds;
 
+
                 timer.running = 0;
+
 
                 updateDisplay();
 
@@ -1001,6 +1313,7 @@ function createTimerCard(timer) {
                 reorderTimerCards();
 
             } catch (error) {
+
                 alert(error.message);
             }
         }
@@ -1014,6 +1327,11 @@ function createTimerCard(timer) {
     deleteButton.addEventListener(
         "click",
         async () => {
+
+            if (currentRole === "viewer") {
+                return;
+            }
+
 
             if (
                 !confirm(
@@ -1044,6 +1362,7 @@ function createTimerCard(timer) {
                 await loadTimers();
 
             } catch (error) {
+
                 alert(error.message);
             }
         }
@@ -1062,6 +1381,7 @@ function createTimerCard(timer) {
                     !document.body
                         .contains(card)
                 ) {
+
                     clearInterval(
                         localInterval
                     );
@@ -1096,6 +1416,7 @@ function createTimerCard(timer) {
                             .remaining_seconds =
                             remainingSeconds;
 
+
                         timerData.running =
                             remainingSeconds > 0
                                 ? 1
@@ -1108,9 +1429,11 @@ function createTimerCard(timer) {
                     reorderTimerCards();
 
 
-                    // Сохраняем состояние
-                    // каждые 5 секунд.
+                    // Viewer только смотрит.
+                    // Он НЕ должен отправлять PUT
+                    // на сервер во время отсчёта.
                     if (
+                        currentRole !== "viewer" &&
                         remainingSeconds % 5 === 0
                     ) {
 
@@ -1135,6 +1458,7 @@ function createTimerCard(timer) {
                             );
 
                         } catch (error) {
+
                             console.error(
                                 error
                             );
@@ -1152,27 +1476,35 @@ function createTimerCard(timer) {
                         0;
 
 
-                    try {
+                    // Viewer не имеет права
+                    // менять состояние таймера.
+                    if (
+                        currentRole !== "viewer"
+                    ) {
 
-                        await api(
-                            `/api/timers/${timer.id}`,
-                            {
-                                method: "PUT",
+                        try {
 
-                                body:
-                                    JSON.stringify({
-                                        running: 0,
+                            await api(
+                                `/api/timers/${timer.id}`,
+                                {
+                                    method: "PUT",
 
-                                        remaining_seconds:
-                                            0
-                                    })
-                            }
-                        );
+                                    body:
+                                        JSON.stringify({
+                                            running: 0,
 
-                    } catch (error) {
-                        console.error(
-                            error
-                        );
+                                            remaining_seconds:
+                                                0
+                                        })
+                                }
+                            );
+
+                        } catch (error) {
+
+                            console.error(
+                                error
+                            );
+                        }
                     }
                 }
 
@@ -1192,6 +1524,11 @@ function createTimerCard(timer) {
 addTimerButton.addEventListener(
     "click",
     async () => {
+
+        if (currentRole === "viewer") {
+            return;
+        }
+
 
         try {
 
@@ -1227,6 +1564,7 @@ addTimerButton.addEventListener(
             await loadTimers();
 
         } catch (error) {
+
             alert(error.message);
         }
     }
@@ -1241,6 +1579,11 @@ async function updateTimer(
     id,
     changes
 ) {
+
+    if (currentRole === "viewer") {
+        return;
+    }
+
 
     try {
 
@@ -1262,6 +1605,7 @@ async function updateTimer(
 
 
         if (timer) {
+
             Object.assign(
                 timer,
                 changes
@@ -1292,13 +1636,16 @@ settingsButton.addEventListener(
 
         settingsMessage.textContent = "";
 
+
         adminPasswordInput.value = "";
         userPasswordInput.value = "";
+        viewerPasswordInput.value = "";
 
 
         settingsModal.classList.remove(
             "hidden"
         );
+
 
         modalOverlay.classList.remove(
             "hidden"
@@ -1308,9 +1655,11 @@ settingsButton.addEventListener(
 
 
 function closeSettings() {
+
     settingsModal.classList.add(
         "hidden"
     );
+
 
     modalOverlay.classList.add(
         "hidden"
@@ -1343,16 +1692,27 @@ settingsForm.addEventListener(
         event.preventDefault();
 
 
+        if (currentRole !== "admin") {
+            return;
+        }
+
+
         const adminPassword =
             adminPasswordInput.value.trim();
+
 
         const userPassword =
             userPasswordInput.value.trim();
 
 
+        const viewerPassword =
+            viewerPasswordInput.value.trim();
+
+
         if (
             !adminPassword &&
-            !userPassword
+            !userPassword &&
+            !viewerPassword
         ) {
 
             settingsMessage.textContent =
@@ -1377,6 +1737,10 @@ settingsForm.addEventListener(
 
                             userPassword:
                                 userPassword ||
+                                undefined,
+
+                            viewerPassword:
+                                viewerPassword ||
                                 undefined
                         })
                 }
@@ -1389,6 +1753,7 @@ settingsForm.addEventListener(
 
             adminPasswordInput.value = "";
             userPasswordInput.value = "";
+            viewerPasswordInput.value = "";
 
         } catch (error) {
 
@@ -1438,6 +1803,7 @@ function formatTime(totalSeconds) {
             totalSeconds / 86400
         );
 
+
     totalSeconds %= 86400;
 
 
@@ -1446,6 +1812,7 @@ function formatTime(totalSeconds) {
             totalSeconds / 3600
         );
 
+
     totalSeconds %= 3600;
 
 
@@ -1453,6 +1820,7 @@ function formatTime(totalSeconds) {
         Math.floor(
             totalSeconds / 60
         );
+
 
     const seconds =
         totalSeconds % 60;
@@ -1463,6 +1831,7 @@ function formatTime(totalSeconds) {
 
 
 function pad(number) {
+
     return String(number)
         .padStart(2, "0");
 }
