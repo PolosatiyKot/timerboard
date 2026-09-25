@@ -395,11 +395,22 @@ function createTimerCard(timer) {
             return;
         }
 
-        if (remainingSeconds > 0) {
-            remainingSeconds--;
-            updateDisplay();
+       if (remainingSeconds > 0) {
+    remainingSeconds--;
+    updateDisplay();
 
-            // Периодически сохраняем состояние
+    const timerData = timers.find(item => item.id === timer.id);
+
+    if (timerData) {
+        timerData.remaining_seconds = remainingSeconds;
+    }
+
+    timers.sort((a, b) => {
+        return Number(a.remaining_seconds || 0)
+            - Number(b.remaining_seconds || 0);
+    });
+
+    // Периодически сохраняем состояние
             if (remainingSeconds % 5 === 0) {
                 try {
                     await api(`/api/timers/${timer.id}`, {
