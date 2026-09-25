@@ -208,6 +208,11 @@ async function loadTimers() {
             ? data
             : (data.timers || []);
 
+        timers.sort((a, b) => {
+            return Number(a.remaining_seconds || 0)
+                - Number(b.remaining_seconds || 0);
+        });
+
         renderTimers();
 
     } catch (error) {
