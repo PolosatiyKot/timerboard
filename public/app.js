@@ -1,690 +1,810 @@
-/* =========================
-   ОСНОВНЫЕ НАСТРОЙКИ
-========================= */
+```javascript
+const loginPage = document.getElementById("loginPage");
+const timerPage = document.getElementById("timerPage");
 
-* {
-    box-sizing: border-box;
-}
+const loginForm = document.getElementById("loginForm");
+const passwordInput = document.getElementById("passwordInput");
+const loginError = document.getElementById("loginError");
 
-html,
-body {
-    margin: 0;
-    padding: 0;
-    min-height: 100%;
-    font-family: Arial, Helvetica, sans-serif;
-    background: #111827;
-    color: #f3f4f6;
-}
+const settingsButton = document.getElementById("settingsButton");
+const logoutButton = document.getElementById("logoutButton");
+const themeButton = document.getElementById("themeButton");
+const timersGrid = document.getElementById("timersGrid");
+const addTimerButton = document.getElementById("addTimerButton");
 
-body {
-    min-height: 100vh;
-}
+const settingsModal = document.getElementById("settingsModal");
+const modalOverlay = document.getElementById("modalOverlay");
+const closeSettingsButton = document.getElementById("closeSettingsButton");
 
-button,
-input {
-    font: inherit;
-}
+const settingsForm = document.getElementById("settingsForm");
+const adminPasswordInput = document.getElementById("adminPasswordInput");
+const userPasswordInput = document.getElementById("userPasswordInput");
+const settingsMessage = document.getElementById("settingsMessage");
 
-button {
-    cursor: pointer;
-}
-
-.hidden {
-    display: none !important;
-}
+let currentRole = null;
+let timers = [];
+let intervalId = null;
 
 
-/* =========================
-   СТРАНИЦЫ
-========================= */
+// =========================
+// API
+// =========================
 
-.page {
-    min-height: 100vh;
-}
+async function api(url, options = {}) {
+    const response = await fetch(url, {
+        credentials: "same-origin",
+        ...options,
+        headers: {
+            "Content-Type": "application/json",
+            ...(options.headers || {})
+        }
+    });
 
+    let data = {};
 
-/* =========================
-   СТРАНИЦА ВХОДА
-========================= */
+    try {
+        data = await response.json();
+    } catch {
+        // Ответ может быть пустым
+    }
 
-.login-page {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 20px;
-    background: #111827;
-}
+    if (!response.ok) {
+        throw new Error(data.error || "Ошибка сервера");
+    }
 
-.login-card {
-    width: 100%;
-    max-width: 420px;
-    padding: 40px;
-    background: #1f2937;
-    border-radius: 18px;
-    box-shadow: 0 10px 35px rgba(0, 0, 0, 0.35);
-}
-
-.login-card h1 {
-    margin: 0 0 10px;
-    text-align: center;
-    font-size: 32px;
-}
-
-.login-subtitle {
-    margin: 0 0 30px;
-    text-align: center;
-    color: #9ca3af;
-}
-
-.login-card label {
-    display: block;
-    margin-bottom: 8px;
-    font-weight: 600;
-}
-
-.login-card input {
-    width: 100%;
-    height: 48px;
-    padding: 0 14px;
-    border: 1px solid #4b5563;
-    border-radius: 10px;
-    outline: none;
-    background: #111827;
-    color: #f3f4f6;
-    transition: border-color 0.2s, box-shadow 0.2s;
-}
-
-.login-card input::placeholder {
-    color: #6b7280;
-}
-
-.login-card input:focus {
-    border-color: #3b82f6;
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+    return data;
 }
 
 
-/* =========================
-   КНОПКИ
-========================= */
+// =========================
+// SESSION
+// =========================
 
-.primary-button,
-.secondary-button {
-    border: none;
-    border-radius: 10px;
-    min-height: 44px;
-    padding: 0 20px;
-    font-weight: 600;
-    transition: transform 0.15s, opacity 0.15s, background 0.15s;
-}
+async function checkSession() {
+    try {
+        const data = await api("/api/session");
 
-.primary-button {
-    width: 100%;
-    margin-top: 18px;
-    background: #2563eb;
-    color: white;
-}
-
-.primary-button:hover {
-    opacity: 0.9;
-}
-
-.secondary-button {
-    background: #374151;
-    color: #f3f4f6;
-}
-
-.secondary-button:hover {
-    background: #4b5563;
-}
-
-.primary-button:active,
-.secondary-button:active {
-    transform: scale(0.98);
+        if (data.authenticated) {
+            currentRole = data.role;
+            showTimerPage();
+            await loadTimers();
+        } else {
+            showLoginPage();
+        }
+    } catch {
+        showLoginPage();
+    }
 }
 
 
-/* =========================
-   ОШИБКИ И СООБЩЕНИЯ
-========================= */
+function showLoginPage() {
+    loginPage.classList.remove("hidden");
+    timerPage.classList.add("hidden");
 
-.error-message {
-    min-height: 20px;
-    margin: 12px 0 0;
-    text-align: center;
-    color: #f87171;
-    font-size: 14px;
-}
+    if (settingsButton) {
+        settingsButton.classList.add("hidden");
+    }
 
-.message {
-    min-height: 20px;
-    margin: 10px 0;
-    font-size: 14px;
+    if (addTimerButton) {
+        addTimerButton.classList.remove("hidden");
+    }
+
+    currentRole = null;
 }
 
 
-/* =========================
-   ВЕРХНЯЯ ПАНЕЛЬ
-========================= */
+function showTimerPage() {
+    loginPage.classList.add("hidden");
+    timerPage.classList.remove("hidden");
 
-.top-bar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 20px;
-    padding: 20px 30px;
-    background: #1f2937;
-    border-bottom: 1px solid #374151;
-}
+    if (currentRole === "admin") {
+        settingsButton.classList.remove("hidden");
+    } else {
+        settingsButton.classList.add("hidden");
+    }
 
-.top-bar h1 {
-    margin: 0;
-    font-size: 28px;
-}
-
-.top-bar .secondary-button {
-    width: auto;
-    margin: 0;
+    // Viewer не может создавать таймеры
+    if (currentRole === "viewer") {
+        addTimerButton.classList.add("hidden");
+    } else {
+        addTimerButton.classList.remove("hidden");
+    }
 }
 
 
-/* =========================
-   КОНТЕЙНЕР ТАЙМЕРОВ
-========================= */
+// =========================
+// LOGOUT
+// =========================
 
-.timers-container {
-    width: 100%;
-    max-width: 1600px;
-    margin: 0 auto;
-    padding: 30px;
+logoutButton.addEventListener("click", async () => {
+    try {
+        await api("/api/logout", {
+            method: "POST"
+        });
+
+        closeSettings();
+        showLoginPage();
+
+        passwordInput.value = "";
+        loginError.textContent = "";
+
+        passwordInput.focus();
+
+    } catch (error) {
+        alert(error.message || "Не удалось выйти");
+    }
+});
+
+
+// =========================
+// THEME
+// =========================
+
+function updateThemeButton() {
+    if (document.body.classList.contains("light-theme")) {
+        themeButton.textContent = "🌙 Тёмная тема";
+    } else {
+        themeButton.textContent = "☀️ Светлая тема";
+    }
 }
 
-.timers-grid {
-    display: grid;
-    grid-template-columns: repeat(
-        auto-fill,
-        minmax(320px, 1fr)
+
+function applySavedTheme() {
+    const savedTheme = localStorage.getItem("theme");
+
+    if (savedTheme === "light") {
+        document.body.classList.add("light-theme");
+    } else {
+        document.body.classList.remove("light-theme");
+    }
+
+    updateThemeButton();
+}
+
+
+themeButton.addEventListener("click", () => {
+    const isLight = document.body.classList.toggle("light-theme");
+
+    localStorage.setItem(
+        "theme",
+        isLight ? "light" : "dark"
     );
-    gap: 24px;
-    align-items: stretch;
-}
+
+    updateThemeButton();
+});
 
 
-/* =========================
-   КАРТОЧКА ТАЙМЕРА
-========================= */
-
-.timer-card {
-    display: flex;
-    flex-direction: column;
-    min-height: 390px;
-    padding: 24px;
-    background: #1f2937;
-    border-radius: 16px;
-    box-shadow: 0 5px 20px rgba(0, 0, 0, 0.25);
-    border: 1px solid #374151;
-}
+applySavedTheme();
 
 
-/* =========================
-   АНОМАЛЬКА
-========================= */
+// =========================
+// LOGIN
+// =========================
 
-.timer-anomaly-field {
-    width: 100%;
-    margin-bottom: 10px;
-}
+loginForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
 
+    loginError.textContent = "";
 
-/* =========================
-   СИСТЕМА + ИГРОК
-========================= */
+    const password = passwordInput.value.trim();
 
-.timer-card-header {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px;
-    margin-bottom: 20px;
-}
-
-.timer-text-field {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    min-width: 0;
-}
-
-.timer-text-field span {
-    font-size: 12px;
-    font-weight: 600;
-    color: #9ca3af;
-}
-
-.timer-anomaly,
-.timer-system,
-.timer-description {
-    width: 100%;
-    height: 46px;
-    min-width: 0;
-    padding: 0 12px;
-    border: 1px solid #4b5563;
-    border-radius: 9px;
-    outline: none;
-    background: #111827;
-    color: #f3f4f6;
-    font-size: 16px;
-    font-weight: 600;
-    transition: border-color 0.2s, box-shadow 0.2s;
-}
-
-.timer-anomaly::placeholder,
-.timer-system::placeholder,
-.timer-description::placeholder {
-    color: #6b7280;
-}
-
-.timer-anomaly:focus,
-.timer-system:focus,
-.timer-description:focus {
-    border-color: #3b82f6;
-    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.12);
-}
-
-
-/* =========================
-   ОТОБРАЖЕНИЕ ТАЙМЕРА
-========================= */
-
-.timer-display {
-    margin: 10px 0 25px;
-    text-align: center;
-    font-size: 38px;
-    font-weight: 700;
-    font-variant-numeric: tabular-nums;
-    letter-spacing: 1px;
-}
-
-
-/* =========================
-   НАСТРОЙКА ВРЕМЕНИ
-========================= */
-
-.timer-settings {
-    margin-bottom: 24px;
-}
-
-.time-input-group {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 8px;
-}
-
-.time-input-group label {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    font-size: 12px;
-    color: #9ca3af;
-    text-align: center;
-}
-
-.time-input-group input {
-    width: 100%;
-    height: 40px;
-    padding: 0 5px;
-    border: 1px solid #4b5563;
-    border-radius: 8px;
-    background: #111827;
-    color: #f3f4f6;
-    text-align: center;
-    outline: none;
-}
-
-.time-input-group input:focus {
-    border-color: #3b82f6;
-}
-
-
-/* =========================
-   КНОПКИ ТАЙМЕРА
-========================= */
-
-.timer-actions {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 8px;
-    margin-top: auto;
-}
-
-.timer-actions button {
-    min-height: 42px;
-    border: none;
-    border-radius: 9px;
-    font-weight: 600;
-}
-
-.start-button {
-    background: #16a34a;
-    color: white;
-}
-
-.start-button:hover {
-    background: #15803d;
-}
-
-.stop-button {
-    background: #f59e0b;
-    color: white;
-}
-
-.stop-button:hover {
-    background: #d97706;
-}
-
-.delete-button {
-    background: #dc2626;
-    color: white;
-}
-
-.delete-button:hover {
-    background: #b91c1c;
-}
-
-
-/* =========================
-   КНОПКА ДОБАВЛЕНИЯ
-========================= */
-
-.add-timer-card {
-    min-height: 390px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 12px;
-    border: 2px dashed #4b5563;
-    border-radius: 16px;
-    background: transparent;
-    color: #9ca3af;
-    font-weight: 600;
-    transition: background 0.2s, border-color 0.2s;
-}
-
-.add-timer-card:hover {
-    background: #1f2937;
-    border-color: #6b7280;
-}
-
-.plus-icon {
-    font-size: 64px;
-    line-height: 1;
-    font-weight: 300;
-}
-
-
-/* =========================
-   МОДАЛЬНОЕ ОКНО
-========================= */
-
-.modal {
-    position: fixed;
-    inset: 0;
-    z-index: 1000;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 20px;
-}
-
-.modal-overlay {
-    position: absolute;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.65);
-}
-
-.modal-content {
-    position: relative;
-    z-index: 1;
-    width: 100%;
-    max-width: 480px;
-    padding: 28px;
-    background: #1f2937;
-    color: #f3f4f6;
-    border-radius: 16px;
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
-}
-
-.modal-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 20px;
-    margin-bottom: 25px;
-}
-
-.modal-header h2 {
-    margin: 0;
-}
-
-.close-button {
-    width: 38px;
-    height: 38px;
-    border: none;
-    border-radius: 8px;
-    background: #374151;
-    font-size: 28px;
-    line-height: 1;
-    color: #e5e7eb;
-}
-
-.close-button:hover {
-    background: #4b5563;
-}
-
-
-/* =========================
-   ФОРМА НАСТРОЕК
-========================= */
-
-.form-group {
-    margin-bottom: 18px;
-}
-
-.form-group label {
-    display: block;
-    margin-bottom: 8px;
-    font-weight: 600;
-}
-
-.form-group input {
-    width: 100%;
-    height: 46px;
-    padding: 0 12px;
-    border: 1px solid #4b5563;
-    border-radius: 9px;
-    outline: none;
-    background: #111827;
-    color: #f3f4f6;
-}
-
-.form-group input:focus {
-    border-color: #3b82f6;
-}
-
-.modal-actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 10px;
-    margin-top: 20px;
-}
-
-.modal-actions button {
-    width: auto;
-    margin: 0;
-}
-
-
-/* =========================
-   АДАПТАЦИЯ ПОД ТЕЛЕФОН
-========================= */
-
-@media (max-width: 700px) {
-
-    .top-bar {
-        padding: 16px;
+    if (!password) {
+        loginError.textContent = "Введите пароль";
+        return;
     }
 
-    .top-bar h1 {
-        font-size: 23px;
-    }
+    try {
+        const data = await api("/api/login", {
+            method: "POST",
+            body: JSON.stringify({
+                password
+            })
+        });
 
-    .timers-container {
-        padding: 16px;
-    }
+        currentRole = data.role;
 
-    .timers-grid {
-        grid-template-columns: 1fr;
-        gap: 16px;
-    }
+        passwordInput.value = "";
 
-    .timer-card,
-    .add-timer-card {
-        min-height: 370px;
-    }
+        showTimerPage();
+        await loadTimers();
 
-    .timer-display {
-        font-size: 30px;
+    } catch (error) {
+        loginError.textContent = error.message || "Неверный пароль";
     }
+});
 
-    .timer-card-header {
-        grid-template-columns: 1fr;
-        gap: 10px;
-    }
 
-    .login-card {
-        padding: 28px 22px;
-    }
+// =========================
+// TIMERS
+// =========================
 
-    .modal-content {
-        padding: 22px;
-    }
+async function loadTimers() {
+    try {
+        const data = await api("/api/timers");
 
-    .modal-actions {
-        flex-direction: column-reverse;
-    }
+        timers = Array.isArray(data)
+            ? data
+            : (data.timers || []);
 
-    .modal-actions button {
-        width: 100%;
+        timers.sort((a, b) => {
+            return Number(a.remaining_seconds || 0)
+                - Number(b.remaining_seconds || 0);
+        });
+
+        renderTimers();
+
+    } catch (error) {
+        console.error(error);
+        alert("Не удалось загрузить таймеры");
     }
 }
 
 
-/* =========================
-   СВЕТЛАЯ ТЕМА
-========================= */
+// Переставляет уже существующие карточки.
+// Карточки НЕ пересоздаются каждую секунду,
+// поэтому пользователь не теряет фокус при вводе текста.
+function reorderTimerCards() {
+    const activeElement = document.activeElement;
 
-body.light-theme {
-    background: #f4f6f8;
-    color: #1f2937;
+    // Пока пользователь печатает в поле,
+    // не трогаем порядок карточек.
+    if (
+        activeElement &&
+        timersGrid.contains(activeElement) &&
+        (
+            activeElement.tagName === "INPUT" ||
+            activeElement.tagName === "TEXTAREA"
+        )
+    ) {
+        return;
+    }
+
+    const cardMap = new Map(
+        Array.from(timersGrid.querySelectorAll(".timer-card"))
+            .map(card => [
+                Number(card.dataset.timerId),
+                card
+            ])
+    );
+
+    for (const timer of timers) {
+        const card = cardMap.get(Number(timer.id));
+
+        if (card) {
+            timersGrid.insertBefore(card, addTimerButton);
+        }
+    }
 }
 
-body.light-theme .login-page {
-    background: #eef2f7;
+
+function renderTimers() {
+    timersGrid.innerHTML = "";
+
+    timers.forEach(timer => {
+        const card = createTimerCard(timer);
+        timersGrid.appendChild(card);
+    });
+
+    timersGrid.appendChild(addTimerButton);
 }
 
-body.light-theme .login-card {
-    background: white;
-    box-shadow: 0 10px 35px rgba(0, 0, 0, 0.08);
+
+// =========================
+// CREATE TIMER CARD
+// =========================
+
+function createTimerCard(timer) {
+    const template = document.getElementById("timerTemplate");
+    const card = template.content.firstElementChild.cloneNode(true);
+
+    card.dataset.timerId = String(timer.id);
+
+    // Текстовые поля
+    const anomaly = card.querySelector(".timer-anomaly");
+    const system = card.querySelector(".timer-system");
+    const description = card.querySelector(".timer-description");
+
+    // Дисплей
+    const display = card.querySelector(".timer-display");
+
+    // Продолжительность
+    const daysInput = card.querySelector(".days-input");
+    const hoursInput = card.querySelector(".hours-input");
+    const minutesInput = card.querySelector(".minutes-input");
+    const secondsInput = card.querySelector(".seconds-input");
+
+    // Кнопки
+    const startButton = card.querySelector(".start-button");
+    const stopButton = card.querySelector(".stop-button");
+    const deleteButton = card.querySelector(".delete-button");
+
+
+    // =========================
+    // INITIAL VALUES
+    // =========================
+
+    anomaly.value = timer.anomaly || "";
+    system.value = timer.system || "";
+    description.value = timer.description || "";
+
+    daysInput.value = timer.days || 0;
+    hoursInput.value = timer.hours || 0;
+    minutesInput.value = timer.minutes || 0;
+    secondsInput.value = timer.seconds || 0;
+
+
+    // =========================
+    // VIEWER MODE
+    // =========================
+
+    if (currentRole === "viewer") {
+        anomaly.readOnly = true;
+        system.readOnly = true;
+        description.readOnly = true;
+
+        daysInput.disabled = true;
+        hoursInput.disabled = true;
+        minutesInput.disabled = true;
+        secondsInput.disabled = true;
+
+        startButton.disabled = true;
+        stopButton.disabled = true;
+        deleteButton.disabled = true;
+    }
+
+
+    let remainingSeconds = Number(
+        timer.remaining_seconds || 0
+    );
+
+    let running = Boolean(timer.running);
+
+
+    // =========================
+    // DISPLAY
+    // =========================
+
+    function updateDisplay() {
+        display.textContent = formatTime(remainingSeconds);
+    }
+
+    updateDisplay();
+
+
+    // =========================
+    // TEXT FIELDS
+    // =========================
+
+    // Аномалька
+    anomaly.addEventListener("change", async () => {
+        if (currentRole === "viewer") {
+            return;
+        }
+
+        await updateTimer(timer.id, {
+            anomaly: anomaly.value
+        });
+    });
+
+
+    // Система
+    system.addEventListener("change", async () => {
+        if (currentRole === "viewer") {
+            return;
+        }
+
+        await updateTimer(timer.id, {
+            system: system.value
+        });
+    });
+
+
+    // Игрок
+    description.addEventListener("change", async () => {
+        if (currentRole === "viewer") {
+            return;
+        }
+
+        await updateTimer(timer.id, {
+            description: description.value
+        });
+    });
+
+
+    // =========================
+    // SAVE DURATION
+    // =========================
+
+    async function saveDuration() {
+        if (currentRole === "viewer") {
+            return;
+        }
+
+        const days = normalizeNumber(daysInput.value);
+        const hours = normalizeNumber(hoursInput.value);
+        const minutes = normalizeNumber(minutesInput.value);
+        const seconds = normalizeNumber(secondsInput.value);
+
+        remainingSeconds =
+            days * 86400 +
+            hours * 3600 +
+            minutes * 60 +
+            seconds;
+
+        await updateTimer(timer.id, {
+            days,
+            hours,
+            minutes,
+            seconds,
+            remaining_seconds: remainingSeconds
+        });
+
+        updateDisplay();
+    }
+
+
+    daysInput.addEventListener("change", saveDuration);
+    hoursInput.addEventListener("change", saveDuration);
+    minutesInput.addEventListener("change", saveDuration);
+    secondsInput.addEventListener("change", saveDuration);
+
+
+    // =========================
+    // START
+    // =========================
+
+    startButton.addEventListener("click", async () => {
+        if (currentRole === "viewer") {
+            return;
+        }
+
+        if (remainingSeconds <= 0) {
+            await saveDuration();
+        }
+
+        if (remainingSeconds <= 0) {
+            return;
+        }
+
+        try {
+            const data = await api(`/api/timers/${timer.id}`, {
+                method: "PUT",
+                body: JSON.stringify({
+                    running: 1,
+                    remaining_seconds: remainingSeconds
+                })
+            });
+
+            if (data.timer) {
+                remainingSeconds = Number(
+                    data.timer.remaining_seconds ?? remainingSeconds
+                );
+            }
+
+            running = true;
+            updateDisplay();
+
+        } catch (error) {
+            alert(error.message);
+        }
+    });
+
+
+    // =========================
+    // STOP
+    // =========================
+
+    stopButton.addEventListener("click", async () => {
+        if (currentRole === "viewer") {
+            return;
+        }
+
+        try {
+            const data = await api(`/api/timers/${timer.id}`, {
+                method: "PUT",
+                body: JSON.stringify({
+                    running: 0,
+                    remaining_seconds: remainingSeconds
+                })
+            });
+
+            if (data.timer) {
+                remainingSeconds = Number(
+                    data.timer.remaining_seconds ?? remainingSeconds
+                );
+            }
+
+            running = false;
+            updateDisplay();
+
+        } catch (error) {
+            alert(error.message);
+        }
+    });
+
+
+    // =========================
+    // DELETE
+    // =========================
+
+    deleteButton.addEventListener("click", async () => {
+        if (currentRole === "viewer") {
+            return;
+        }
+
+        if (!confirm("Удалить этот таймер?")) {
+            return;
+        }
+
+        try {
+            await api(`/api/timers/${timer.id}`, {
+                method: "DELETE"
+            });
+
+            await loadTimers();
+
+        } catch (error) {
+            alert(error.message);
+        }
+    });
+
+
+    // =========================
+    // LOCAL COUNTDOWN
+    // =========================
+
+    const localInterval = setInterval(async () => {
+        if (!document.body.contains(card)) {
+            clearInterval(localInterval);
+            return;
+        }
+
+        if (!running) {
+            return;
+        }
+
+        if (remainingSeconds > 0) {
+            remainingSeconds--;
+
+            updateDisplay();
+
+            const timerData = timers.find(
+                item => item.id === timer.id
+            );
+
+            if (timerData) {
+                timerData.remaining_seconds = remainingSeconds;
+            }
+
+            // Сортируем массив
+            timers.sort((a, b) => {
+                return Number(a.remaining_seconds || 0)
+                    - Number(b.remaining_seconds || 0);
+            });
+
+            // Переставляем существующие карточки.
+            // Сам DOM карточки не пересоздаётся.
+            reorderTimerCards();
+
+
+            // Периодически сохраняем состояние
+            if (remainingSeconds % 5 === 0) {
+                try {
+                    await api(`/api/timers/${timer.id}`, {
+                        method: "PUT",
+                        body: JSON.stringify({
+                            running: remainingSeconds > 0 ? 1 : 0,
+                            remaining_seconds: remainingSeconds
+                        })
+                    });
+                } catch (error) {
+                    console.error(error);
+                }
+            }
+
+        } else {
+            running = false;
+
+            const timerData = timers.find(
+                item => item.id === timer.id
+            );
+
+            if (timerData) {
+                timerData.remaining_seconds = 0;
+                timerData.running = 0;
+            }
+
+            try {
+                await api(`/api/timers/${timer.id}`, {
+                    method: "PUT",
+                    body: JSON.stringify({
+                        running: 0,
+                        remaining_seconds: 0
+                    })
+                });
+            } catch (error) {
+                console.error(error);
+            }
+
+            timers.sort((a, b) => {
+                return Number(a.remaining_seconds || 0)
+                    - Number(b.remaining_seconds || 0);
+            });
+
+            reorderTimerCards();
+        }
+
+    }, 1000);
+
+
+    return card;
 }
 
-body.light-theme .login-subtitle {
-    color: #6b7280;
+
+// =========================
+// ADD TIMER
+// =========================
+
+addTimerButton.addEventListener("click", async () => {
+    if (currentRole === "viewer") {
+        return;
+    }
+
+    try {
+        await api("/api/timers", {
+            method: "POST",
+            body: JSON.stringify({
+                system: "",
+                anomaly: "",
+                description: "",
+                days: 0,
+                hours: 0,
+                minutes: 0,
+                seconds: 0,
+                remaining_seconds: 0,
+                running: 0
+            })
+        });
+
+        await loadTimers();
+
+    } catch (error) {
+        alert(error.message);
+    }
+});
+
+
+// =========================
+// UPDATE TIMER
+// =========================
+
+async function updateTimer(id, changes) {
+    try {
+        await api(`/api/timers/${id}`, {
+            method: "PUT",
+            body: JSON.stringify(changes)
+        });
+
+        const timer = timers.find(item => item.id === id);
+
+        if (timer) {
+            Object.assign(timer, changes);
+        }
+
+    } catch (error) {
+        console.error(error);
+        alert(error.message);
+    }
 }
 
-body.light-theme .login-card input {
-    background: white;
-    color: #1f2937;
-    border-color: #d1d5db;
+
+// =========================
+// SETTINGS
+// =========================
+
+settingsButton.addEventListener("click", () => {
+    if (currentRole !== "admin") {
+        return;
+    }
+
+    settingsMessage.textContent = "";
+    adminPasswordInput.value = "";
+    userPasswordInput.value = "";
+
+    settingsModal.classList.remove("hidden");
+    modalOverlay.classList.remove("hidden");
+});
+
+
+function closeSettings() {
+    settingsModal.classList.add("hidden");
+    modalOverlay.classList.add("hidden");
 }
 
-body.light-theme .login-card input::placeholder {
-    color: #9ca3af;
+
+closeSettingsButton.addEventListener("click", closeSettings);
+modalOverlay.addEventListener("click", closeSettings);
+
+
+settingsForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+
+    const adminPassword = adminPasswordInput.value.trim();
+    const userPassword = userPasswordInput.value.trim();
+
+    if (!adminPassword && !userPassword) {
+        settingsMessage.textContent =
+            "Введите хотя бы один новый пароль";
+
+        return;
+    }
+
+    try {
+        await api("/api/passwords", {
+            method: "PUT",
+            body: JSON.stringify({
+                adminPassword: adminPassword || undefined,
+                userPassword: userPassword || undefined
+            })
+        });
+
+        settingsMessage.textContent =
+            "Пароли успешно изменены";
+
+        adminPasswordInput.value = "";
+        userPasswordInput.value = "";
+
+    } catch (error) {
+        settingsMessage.textContent = error.message;
+    }
+});
+
+
+// =========================
+// HELPERS
+// =========================
+
+function normalizeNumber(value) {
+    const number = Number.parseInt(value, 10);
+
+    if (!Number.isFinite(number) || number < 0) {
+        return 0;
+    }
+
+    return number;
 }
 
-body.light-theme .top-bar {
-    background: white;
-    border-bottom-color: #e5e7eb;
+
+function formatTime(totalSeconds) {
+    totalSeconds = Math.max(
+        0,
+        Number(totalSeconds) || 0
+    );
+
+    const days = Math.floor(totalSeconds / 86400);
+
+    totalSeconds %= 86400;
+
+    const hours = Math.floor(totalSeconds / 3600);
+
+    totalSeconds %= 3600;
+
+    const minutes = Math.floor(totalSeconds / 60);
+
+    const seconds = totalSeconds % 60;
+
+    return `${days}д ${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
 }
 
-body.light-theme .secondary-button {
-    background: #e5e7eb;
-    color: #111827;
+
+function pad(number) {
+    return String(number).padStart(2, "0");
 }
 
-body.light-theme .secondary-button:hover {
-    background: #d1d5db;
-}
 
-body.light-theme .timer-card {
-    background: white;
-    border-color: #e5e7eb;
-    box-shadow: 0 5px 20px rgba(0, 0, 0, 0.07);
-}
+// =========================
+// START
+// =========================
 
-body.light-theme .timer-anomaly,
-body.light-theme .timer-system,
-body.light-theme .timer-description {
-    background: white;
-    color: #1f2937;
-    border-color: #d1d5db;
-}
-
-body.light-theme .timer-anomaly::placeholder,
-body.light-theme .timer-system::placeholder,
-body.light-theme .timer-description::placeholder {
-    color: #9ca3af;
-}
-
-body.light-theme .timer-text-field span {
-    color: #6b7280;
-}
-
-body.light-theme .time-input-group label {
-    color: #6b7280;
-}
-
-body.light-theme .time-input-group input {
-    background: white;
-    color: #1f2937;
-    border-color: #d1d5db;
-}
-
-body.light-theme .add-timer-card {
-    border-color: #cbd5e1;
-    color: #64748b;
-}
-
-body.light-theme .add-timer-card:hover {
-    background: white;
-    border-color: #94a3b8;
-}
-
-body.light-theme .modal-content {
-    background: white;
-    color: #1f2937;
-}
-
-body.light-theme .close-button {
-    background: #f3f4f6;
-    color: #374151;
-}
-
-body.light-theme .close-button:hover {
-    background: #e5e7eb;
-}
-
-body.light-theme .form-group input {
-    background: white;
-    color: #1f2937;
-    border-color: #d1d5db;
-}
+checkSession();
+```
