@@ -1,0 +1,517 @@
+/* =========================
+   ОСНОВНЫЕ НАСТРОЙКИ
+========================= */
+
+* {
+    box-sizing: border-box;
+}
+
+html,
+body {
+    margin: 0;
+    padding: 0;
+    min-height: 100%;
+    font-family: Arial, Helvetica, sans-serif;
+    background: #f4f6f8;
+    color: #1f2937;
+}
+
+body {
+    min-height: 100vh;
+}
+
+button,
+input {
+    font: inherit;
+}
+
+button {
+    cursor: pointer;
+}
+
+.hidden {
+    display: none !important;
+}
+
+
+/* =========================
+   СТРАНИЦЫ
+========================= */
+
+.page {
+    min-height: 100vh;
+}
+
+
+/* =========================
+   СТРАНИЦА ВХОДА
+========================= */
+
+.login-page {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: #eef2f7;
+}
+
+.login-card {
+    width: 100%;
+    max-width: 420px;
+    padding: 40px;
+    background: white;
+    border-radius: 18px;
+    box-shadow: 0 10px 35px rgba(0, 0, 0, 0.08);
+}
+
+.login-card h1 {
+    margin: 0 0 10px;
+    text-align: center;
+    font-size: 32px;
+}
+
+.login-subtitle {
+    margin: 0 0 30px;
+    text-align: center;
+    color: #6b7280;
+}
+
+.login-card label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 600;
+}
+
+.login-card input {
+    width: 100%;
+    height: 48px;
+    padding: 0 14px;
+    border: 1px solid #d1d5db;
+    border-radius: 10px;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.login-card input:focus {
+    border-color: #2563eb;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+
+/* =========================
+   КНОПКИ
+========================= */
+
+.primary-button,
+.secondary-button {
+    border: none;
+    border-radius: 10px;
+    min-height: 44px;
+    padding: 0 20px;
+    font-weight: 600;
+    transition: transform 0.15s, opacity 0.15s;
+}
+
+.primary-button {
+    width: 100%;
+    margin-top: 18px;
+    background: #2563eb;
+    color: white;
+}
+
+.primary-button:hover {
+    opacity: 0.9;
+}
+
+.secondary-button {
+    background: #e5e7eb;
+    color: #111827;
+}
+
+.secondary-button:hover {
+    background: #d1d5db;
+}
+
+.primary-button:active,
+.secondary-button:active {
+    transform: scale(0.98);
+}
+
+
+/* =========================
+   ОШИБКИ И СООБЩЕНИЯ
+========================= */
+
+.error-message {
+    min-height: 20px;
+    margin: 12px 0 0;
+    text-align: center;
+    color: #dc2626;
+    font-size: 14px;
+}
+
+.message {
+    min-height: 20px;
+    margin: 10px 0;
+    font-size: 14px;
+}
+
+
+/* =========================
+   ВЕРХНЯЯ ПАНЕЛЬ
+========================= */
+
+.top-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    padding: 20px 30px;
+    background: white;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.top-bar h1 {
+    margin: 0;
+    font-size: 28px;
+}
+
+.top-bar .secondary-button {
+    width: auto;
+    margin: 0;
+}
+
+
+/* =========================
+   КОНТЕЙНЕР ТАЙМЕРОВ
+========================= */
+
+.timers-container {
+    width: 100%;
+    max-width: 1600px;
+    margin: 0 auto;
+    padding: 30px;
+}
+
+.timers-grid {
+    display: grid;
+    grid-template-columns: repeat(
+        auto-fill,
+        minmax(320px, 1fr)
+    );
+    gap: 24px;
+    align-items: stretch;
+}
+
+
+/* =========================
+   КАРТОЧКА ТАЙМЕРА
+========================= */
+
+.timer-card {
+    display: flex;
+    flex-direction: column;
+    min-height: 360px;
+    padding: 24px;
+    background: white;
+    border-radius: 16px;
+    box-shadow: 0 5px 20px rgba(0, 0, 0, 0.07);
+    border: 1px solid #e5e7eb;
+}
+
+.timer-card-header {
+    margin-bottom: 20px;
+}
+
+.timer-description {
+    width: 100%;
+    height: 46px;
+    padding: 0 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 9px;
+    outline: none;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.timer-description:focus {
+    border-color: #2563eb;
+}
+
+
+/* =========================
+   ОТОБРАЖЕНИЕ ТАЙМЕРА
+========================= */
+
+.timer-display {
+    margin: 10px 0 25px;
+    text-align: center;
+    font-size: 38px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 1px;
+}
+
+
+/* =========================
+   НАСТРОЙКА ВРЕМЕНИ
+========================= */
+
+.timer-settings {
+    margin-bottom: 24px;
+}
+
+.time-input-group {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+}
+
+.time-input-group label {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 12px;
+    color: #6b7280;
+    text-align: center;
+}
+
+.time-input-group input {
+    width: 100%;
+    height: 40px;
+    padding: 0 5px;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    text-align: center;
+    outline: none;
+}
+
+.time-input-group input:focus {
+    border-color: #2563eb;
+}
+
+
+/* =========================
+   КНОПКИ ТАЙМЕРА
+========================= */
+
+.timer-actions {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    margin-top: auto;
+}
+
+.timer-actions button {
+    min-height: 42px;
+    border: none;
+    border-radius: 9px;
+    font-weight: 600;
+}
+
+.start-button {
+    background: #16a34a;
+    color: white;
+}
+
+.start-button:hover {
+    background: #15803d;
+}
+
+.stop-button {
+    background: #f59e0b;
+    color: white;
+}
+
+.stop-button:hover {
+    background: #d97706;
+}
+
+.delete-button {
+    background: #dc2626;
+    color: white;
+}
+
+.delete-button:hover {
+    background: #b91c1c;
+}
+
+
+/* =========================
+   КНОПКА ДОБАВЛЕНИЯ
+========================= */
+
+.add-timer-card {
+    min-height: 360px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    border: 2px dashed #cbd5e1;
+    border-radius: 16px;
+    background: transparent;
+    color: #64748b;
+    font-weight: 600;
+    transition: background 0.2s, border-color 0.2s;
+}
+
+.add-timer-card:hover {
+    background: #ffffff;
+    border-color: #94a3b8;
+}
+
+.plus-icon {
+    font-size: 64px;
+    line-height: 1;
+    font-weight: 300;
+}
+
+
+/* =========================
+   МОДАЛЬНОЕ ОКНО
+========================= */
+
+.modal {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+
+.modal-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+}
+
+.modal-content {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 480px;
+    padding: 28px;
+    background: white;
+    border-radius: 16px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+}
+
+.modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    margin-bottom: 25px;
+}
+
+.modal-header h2 {
+    margin: 0;
+}
+
+.close-button {
+    width: 38px;
+    height: 38px;
+    border: none;
+    border-radius: 8px;
+    background: #f3f4f6;
+    font-size: 28px;
+    line-height: 1;
+    color: #374151;
+}
+
+.close-button:hover {
+    background: #e5e7eb;
+}
+
+
+/* =========================
+   ФОРМА НАСТРОЕК
+========================= */
+
+.form-group {
+    margin-bottom: 18px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 600;
+}
+
+.form-group input {
+    width: 100%;
+    height: 46px;
+    padding: 0 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 9px;
+    outline: none;
+}
+
+.form-group input:focus {
+    border-color: #2563eb;
+}
+
+.modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+.modal-actions button {
+    width: auto;
+    margin: 0;
+}
+
+
+/* =========================
+   АДАПТАЦИЯ ПОД ТЕЛЕФОН
+========================= */
+
+@media (max-width: 700px) {
+
+    .top-bar {
+        padding: 16px;
+    }
+
+    .top-bar h1 {
+        font-size: 23px;
+    }
+
+    .timers-container {
+        padding: 16px;
+    }
+
+    .timers-grid {
+        grid-template-columns: 1fr;
+        gap: 16px;
+    }
+
+    .timer-card,
+    .add-timer-card {
+        min-height: 340px;
+    }
+
+    .timer-display {
+        font-size: 30px;
+    }
+
+    .login-card {
+        padding: 28px 22px;
+    }
+
+    .modal-content {
+        padding: 22px;
+    }
+
+    .modal-actions {
+        flex-direction: column-reverse;
+    }
+
+    .modal-actions button {
+        width: 100%;
+    }
+}
