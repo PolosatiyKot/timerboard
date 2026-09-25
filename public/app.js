@@ -7,6 +7,7 @@ const loginError = document.getElementById("loginError");
 
 const settingsButton = document.getElementById("settingsButton");
 const logoutButton = document.getElementById("logoutButton");
+const themeButton = document.getElementById("themeButton");
 const timersGrid = document.getElementById("timersGrid");
 const addTimerButton = document.getElementById("addTimerButton");
 
@@ -120,6 +121,43 @@ logoutButton.addEventListener("click", async () => {
         alert(error.message || "Не удалось выйти");
     }
 });
+
+// =========================
+// THEME
+// =========================
+
+function updateThemeButton() {
+    if (document.body.classList.contains("light-theme")) {
+        themeButton.textContent = "🌙 Тёмная тема";
+    } else {
+        themeButton.textContent = "☀️ Светлая тема";
+    }
+}
+
+function applySavedTheme() {
+    const savedTheme = localStorage.getItem("theme");
+
+    if (savedTheme === "light") {
+        document.body.classList.add("light-theme");
+    } else {
+        document.body.classList.remove("light-theme");
+    }
+
+    updateThemeButton();
+}
+
+themeButton.addEventListener("click", () => {
+    const isLight = document.body.classList.toggle("light-theme");
+
+    localStorage.setItem(
+        "theme",
+        isLight ? "light" : "dark"
+    );
+
+    updateThemeButton();
+});
+
+applySavedTheme();
 
 // =========================
 // LOGIN
