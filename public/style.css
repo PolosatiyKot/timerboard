@@ -532,3 +532,105 @@ button {
         width: 100%;
     }
 }
+
+/* =========================
+   СВЕТЛАЯ ТЕМА
+========================= */
+
+body.light-theme {
+    background: #f4f6f8;
+    color: #1f2937;
+}
+
+body.light-theme .login-page {
+    background: #eef2f7;
+}
+
+body.light-theme .login-card {
+    background: white;
+    box-shadow: 0 10px 35px rgba(0, 0, 0, 0.08);
+}
+
+body.light-theme .login-subtitle {
+    color: #6b7280;
+}
+
+body.light-theme .login-card input {
+    background: white;
+    color: #1f2937;
+    border-color: #d1d5db;
+}
+
+body.light-theme .login-card input::placeholder {
+    color: #9ca3af;
+}
+
+body.light-theme .top-bar {
+    background: white;
+    border-bottom-color: #e5e7eb;
+}
+
+body.light-theme .secondary-button {
+    background: #e5e7eb;
+    color: #111827;
+}
+
+body.light-theme .secondary-button:hover {
+    background: #d1d5db;
+}
+
+body.light-theme .timer-card {
+    background: white;
+    border-color: #e5e7eb;
+    box-shadow: 0 5px 20px rgba(0, 0, 0, 0.07);
+}
+
+body.light-theme .timer-description {
+    background: white;
+    color: #1f2937;
+    border-color: #d1d5db;
+}
+
+body.light-theme .timer-description::placeholder {
+    color: #9ca3af;
+}
+
+body.light-theme .time-input-group label {
+    color: #6b7280;
+}
+
+body.light-theme .time-input-group input {
+    background: white;
+    color: #1f2937;
+    border-color: #d1d5db;
+}
+
+body.light-theme .add-timer-card {
+    border-color: #cbd5e1;
+    color: #64748b;
+}
+
+body.light-theme .add-timer-card:hover {
+    background: white;
+    border-color: #94a3b8;
+}
+
+body.light-theme .modal-content {
+    background: white;
+    color: #1f2937;
+}
+
+body.light-theme .close-button {
+    background: #f3f4f6;
+    color: #374151;
+}
+
+body.light-theme .close-button:hover {
+    background: #e5e7eb;
+}
+
+body.light-theme .form-group input {
+    background: white;
+    color: #1f2937;
+    border-color: #d1d5db;
+}
