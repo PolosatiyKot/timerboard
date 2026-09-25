@@ -12,8 +12,8 @@ body {
     padding: 0;
     min-height: 100%;
     font-family: Arial, Helvetica, sans-serif;
-    background: #f4f6f8;
-    color: #1f2937;
+    background: #111827;
+    color: #f3f4f6;
 }
 
 body {
@@ -52,16 +52,16 @@ button {
     align-items: center;
     justify-content: center;
     padding: 20px;
-    background: #eef2f7;
+    background: #111827;
 }
 
 .login-card {
     width: 100%;
     max-width: 420px;
     padding: 40px;
-    background: white;
+    background: #1f2937;
     border-radius: 18px;
-    box-shadow: 0 10px 35px rgba(0, 0, 0, 0.08);
+    box-shadow: 0 10px 35px rgba(0, 0, 0, 0.35);
 }
 
 .login-card h1 {
@@ -73,7 +73,7 @@ button {
 .login-subtitle {
     margin: 0 0 30px;
     text-align: center;
-    color: #6b7280;
+    color: #9ca3af;
 }
 
 .login-card label {
@@ -86,15 +86,21 @@ button {
     width: 100%;
     height: 48px;
     padding: 0 14px;
-    border: 1px solid #d1d5db;
+    border: 1px solid #4b5563;
     border-radius: 10px;
     outline: none;
+    background: #111827;
+    color: #f3f4f6;
     transition: border-color 0.2s, box-shadow 0.2s;
 }
 
+.login-card input::placeholder {
+    color: #6b7280;
+}
+
 .login-card input:focus {
-    border-color: #2563eb;
-    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
 }
 
 
@@ -109,7 +115,7 @@ button {
     min-height: 44px;
     padding: 0 20px;
     font-weight: 600;
-    transition: transform 0.15s, opacity 0.15s;
+    transition: transform 0.15s, opacity 0.15s, background 0.15s;
 }
 
 .primary-button {
@@ -124,12 +130,12 @@ button {
 }
 
 .secondary-button {
-    background: #e5e7eb;
-    color: #111827;
+    background: #374151;
+    color: #f3f4f6;
 }
 
 .secondary-button:hover {
-    background: #d1d5db;
+    background: #4b5563;
 }
 
 .primary-button:active,
@@ -146,7 +152,7 @@ button {
     min-height: 20px;
     margin: 12px 0 0;
     text-align: center;
-    color: #dc2626;
+    color: #f87171;
     font-size: 14px;
 }
 
@@ -167,8 +173,8 @@ button {
     justify-content: space-between;
     gap: 20px;
     padding: 20px 30px;
-    background: white;
-    border-bottom: 1px solid #e5e7eb;
+    background: #1f2937;
+    border-bottom: 1px solid #374151;
 }
 
 .top-bar h1 {
@@ -213,10 +219,10 @@ button {
     flex-direction: column;
     min-height: 360px;
     padding: 24px;
-    background: white;
+    background: #1f2937;
     border-radius: 16px;
-    box-shadow: 0 5px 20px rgba(0, 0, 0, 0.07);
-    border: 1px solid #e5e7eb;
+    box-shadow: 0 5px 20px rgba(0, 0, 0, 0.25);
+    border: 1px solid #374151;
 }
 
 .timer-card-header {
@@ -227,15 +233,21 @@ button {
     width: 100%;
     height: 46px;
     padding: 0 12px;
-    border: 1px solid #d1d5db;
+    border: 1px solid #4b5563;
     border-radius: 9px;
     outline: none;
+    background: #111827;
+    color: #f3f4f6;
     font-size: 16px;
     font-weight: 600;
 }
 
+.timer-description::placeholder {
+    color: #6b7280;
+}
+
 .timer-description:focus {
-    border-color: #2563eb;
+    border-color: #3b82f6;
 }
 
 
@@ -272,7 +284,7 @@ button {
     flex-direction: column;
     gap: 6px;
     font-size: 12px;
-    color: #6b7280;
+    color: #9ca3af;
     text-align: center;
 }
 
@@ -280,14 +292,16 @@ button {
     width: 100%;
     height: 40px;
     padding: 0 5px;
-    border: 1px solid #d1d5db;
+    border: 1px solid #4b5563;
     border-radius: 8px;
+    background: #111827;
+    color: #f3f4f6;
     text-align: center;
     outline: none;
 }
 
 .time-input-group input:focus {
-    border-color: #2563eb;
+    border-color: #3b82f6;
 }
 
 
@@ -348,17 +362,17 @@ button {
     align-items: center;
     justify-content: center;
     gap: 12px;
-    border: 2px dashed #cbd5e1;
+    border: 2px dashed #4b5563;
     border-radius: 16px;
     background: transparent;
-    color: #64748b;
+    color: #9ca3af;
     font-weight: 600;
     transition: background 0.2s, border-color 0.2s;
 }
 
 .add-timer-card:hover {
-    background: #ffffff;
-    border-color: #94a3b8;
+    background: #1f2937;
+    border-color: #6b7280;
 }
 
 .plus-icon {
@@ -385,7 +399,7 @@ button {
 .modal-overlay {
     position: absolute;
     inset: 0;
-    background: rgba(0, 0, 0, 0.45);
+    background: rgba(0, 0, 0, 0.65);
 }
 
 .modal-content {
@@ -394,9 +408,10 @@ button {
     width: 100%;
     max-width: 480px;
     padding: 28px;
-    background: white;
+    background: #1f2937;
+    color: #f3f4f6;
     border-radius: 16px;
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
 }
 
 .modal-header {
@@ -416,14 +431,14 @@ button {
     height: 38px;
     border: none;
     border-radius: 8px;
-    background: #f3f4f6;
+    background: #374151;
     font-size: 28px;
     line-height: 1;
-    color: #374151;
+    color: #e5e7eb;
 }
 
 .close-button:hover {
-    background: #e5e7eb;
+    background: #4b5563;
 }
 
 
@@ -445,13 +460,15 @@ button {
     width: 100%;
     height: 46px;
     padding: 0 12px;
-    border: 1px solid #d1d5db;
+    border: 1px solid #4b5563;
     border-radius: 9px;
     outline: none;
+    background: #111827;
+    color: #f3f4f6;
 }
 
 .form-group input:focus {
-    border-color: #2563eb;
+    border-color: #3b82f6;
 }
 
 .modal-actions {
