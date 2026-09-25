@@ -310,7 +310,10 @@ function createTimerCard(timer) {
 
     const description =
         card.querySelector(".timer-description");
-
+    
+    const system =
+        card.querySelector(".timer-system");
+    
     const display =
         card.querySelector(".timer-display");
 
@@ -336,6 +339,8 @@ function createTimerCard(timer) {
         card.querySelector(".delete-button");
 
 
+    system.value = timer.system || "";
+    
     description.value = timer.description || "";
 
     daysInput.value = timer.days || 0;
@@ -359,11 +364,17 @@ function createTimerCard(timer) {
 
     updateDisplay();
 
-
     // =========================
-    // DESCRIPTION
+    // SYSTEM / DESCRIPTION
     // =========================
-
+    
+    system.addEventListener("change", async () => {
+        await updateTimer(timer.id, {
+            system: system.value
+        });
+    });
+    
+    
     description.addEventListener("change", async () => {
         await updateTimer(timer.id, {
             description: description.value
@@ -676,6 +687,7 @@ addTimerButton.addEventListener("click", async () => {
         await api("/api/timers", {
             method: "POST",
             body: JSON.stringify({
+                system: "",
                 description: "",
                 days: 0,
                 hours: 0,
