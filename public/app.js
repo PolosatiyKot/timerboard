@@ -13,15 +13,27 @@ const addTimerButton = document.getElementById("addTimerButton");
 
 const settingsModal = document.getElementById("settingsModal");
 const modalOverlay = document.getElementById("modalOverlay");
-const closeSettingsButton = document.getElementById("closeSettingsButton");
+const closeSettingsButton =
+    document.getElementById("closeSettingsButton");
+const cancelSettingsButton =
+    document.getElementById("cancelSettingsButton");
 
 const settingsForm = document.getElementById("settingsForm");
-const adminPasswordInput = document.getElementById("adminPasswordInput");
-const userPasswordInput = document.getElementById("userPasswordInput");
-const settingsMessage = document.getElementById("settingsMessage");
+const adminPasswordInput =
+    document.getElementById("adminPasswordInput");
+const userPasswordInput =
+    document.getElementById("userPasswordInput");
+const settingsMessage =
+    document.getElementById("settingsMessage");
 
 let currentRole = null;
 let timers = [];
+
+// Таймеры отложенного сохранения текста.
+const textSaveTimers = new Map();
+
+// Уже выполняющиеся запросы сохранения текста.
+const textSavePromises = new Map();
 
 
 // =========================
@@ -43,11 +55,13 @@ async function api(url, options = {}) {
     try {
         data = await response.json();
     } catch {
-        // Ответ может быть пустым
+        // Ответ может быть пустым.
     }
 
     if (!response.ok) {
-        throw new Error(data.error || "Ошибка сервера");
+        throw new Error(
+            data.error || "Ошибка сервера"
+        );
     }
 
     return data;
@@ -108,12 +122,15 @@ function showTimerPage() {
 
 logoutButton.addEventListener("click", async () => {
     try {
+        // Перед выходом обязательно сохраняем
+        // незавершённый ввод.
+        await flushAllTextSaves();
+
         await api("/api/logout", {
             method: "POST"
         });
 
         closeSettings();
-
         showLoginPage();
 
         passwordInput.value = "";
@@ -122,7 +139,10 @@ logoutButton.addEventListener("click", async () => {
         passwordInput.focus();
 
     } catch (error) {
-        alert(error.message || "Не удалось выйти");
+        alert(
+            error.message ||
+            "Не удалось выйти"
+        );
     }
 });
 
@@ -132,21 +152,32 @@ logoutButton.addEventListener("click", async () => {
 // =========================
 
 function updateThemeButton() {
-    if (document.body.classList.contains("light-theme")) {
-        themeButton.textContent = "🌙 Тёмная тема";
+    if (
+        document.body.classList.contains(
+            "light-theme"
+        )
+    ) {
+        themeButton.textContent =
+            "🌙 Тёмная тема";
     } else {
-        themeButton.textContent = "☀️ Светлая тема";
+        themeButton.textContent =
+            "☀️ Светлая тема";
     }
 }
 
 
 function applySavedTheme() {
-    const savedTheme = localStorage.getItem("theme");
+    const savedTheme =
+        localStorage.getItem("theme");
 
     if (savedTheme === "light") {
-        document.body.classList.add("light-theme");
+        document.body.classList.add(
+            "light-theme"
+        );
     } else {
-        document.body.classList.remove("light-theme");
+        document.body.classList.remove(
+            "light-theme"
+        );
     }
 
     updateThemeButton();
@@ -155,7 +186,9 @@ function applySavedTheme() {
 
 themeButton.addEventListener("click", () => {
     const isLight =
-        document.body.classList.toggle("light-theme");
+        document.body.classList.toggle(
+            "light-theme"
+        );
 
     localStorage.setItem(
         "theme",
@@ -173,39 +206,51 @@ applySavedTheme();
 // LOGIN
 // =========================
 
-loginForm.addEventListener("submit", async (event) => {
-    event.preventDefault();
+loginForm.addEventListener(
+    "submit",
+    async (event) => {
 
-    loginError.textContent = "";
+        event.preventDefault();
 
-    const password = passwordInput.value.trim();
+        loginError.textContent = "";
 
-    if (!password) {
-        loginError.textContent = "Введите пароль";
-        return;
+        const password =
+            passwordInput.value.trim();
+
+        if (!password) {
+            loginError.textContent =
+                "Введите пароль";
+
+            return;
+        }
+
+        try {
+            const data = await api(
+                "/api/login",
+                {
+                    method: "POST",
+
+                    body: JSON.stringify({
+                        password
+                    })
+                }
+            );
+
+            currentRole = data.role;
+
+            passwordInput.value = "";
+
+            showTimerPage();
+
+            await loadTimers();
+
+        } catch (error) {
+            loginError.textContent =
+                error.message ||
+                "Неверный пароль";
+        }
     }
-
-    try {
-        const data = await api("/api/login", {
-            method: "POST",
-            body: JSON.stringify({
-                password
-            })
-        });
-
-        currentRole = data.role;
-
-        passwordInput.value = "";
-
-        showTimerPage();
-
-        await loadTimers();
-
-    } catch (error) {
-        loginError.textContent =
-            error.message || "Неверный пароль";
-    }
-});
+);
 
 
 // =========================
@@ -214,7 +259,13 @@ loginForm.addEventListener("submit", async (event) => {
 
 async function loadTimers() {
     try {
-        const data = await api("/api/timers");
+        // Очень важно:
+        // перед удалением старых карточек ждём,
+        // пока текст всех полей будет сохранён.
+        await flushAllTextSaves();
+
+        const data =
+            await api("/api/timers");
 
         timers = Array.isArray(data)
             ? data
@@ -227,26 +278,37 @@ async function loadTimers() {
     } catch (error) {
         console.error(error);
 
-        alert("Не удалось загрузить таймеры");
+        alert(
+            "Не удалось загрузить таймеры"
+        );
     }
 }
 
 
-// Сортировка таймеров по оставшемуся времени
+// =========================
+// SORT
+// =========================
+
 function sortTimers() {
     timers.sort((a, b) => {
-        return Number(a.remaining_seconds || 0)
-            - Number(b.remaining_seconds || 0);
+        return Number(
+            a.remaining_seconds || 0
+        ) - Number(
+            b.remaining_seconds || 0
+        );
     });
 }
 
 
-// Переставляем существующие карточки.
-// Карточки не пересоздаются каждую секунду.
-function reorderTimerCards() {
-    const activeElement = document.activeElement;
+// =========================
+// REORDER
+// =========================
 
-    // Если пользователь сейчас вводит текст или число,
+function reorderTimerCards() {
+    const activeElement =
+        document.activeElement;
+
+    // Пока пользователь печатает,
     // не двигаем карточки.
     if (
         activeElement &&
@@ -260,7 +322,9 @@ function reorderTimerCards() {
     }
 
     const cards = Array.from(
-        timersGrid.querySelectorAll(".timer-card")
+        timersGrid.querySelectorAll(
+            ".timer-card"
+        )
     );
 
     const cardMap = new Map();
@@ -273,9 +337,10 @@ function reorderTimerCards() {
     }
 
     for (const timer of timers) {
-        const card = cardMap.get(
-            Number(timer.id)
-        );
+        const card =
+            cardMap.get(
+                Number(timer.id)
+            );
 
         if (card) {
             timersGrid.insertBefore(
@@ -287,16 +352,244 @@ function reorderTimerCards() {
 }
 
 
+// =========================
+// RENDER
+// =========================
+
 function renderTimers() {
     timersGrid.innerHTML = "";
 
     timers.forEach(timer => {
-        const card = createTimerCard(timer);
+        const card =
+            createTimerCard(timer);
 
         timersGrid.appendChild(card);
     });
 
-    timersGrid.appendChild(addTimerButton);
+    timersGrid.appendChild(
+        addTimerButton
+    );
+}
+
+
+// =========================
+// TEXT SAVE
+// =========================
+
+function scheduleTextSave(timer) {
+    const timerId = timer.id;
+
+    // Сразу обновляем локальные данные.
+    timer.system =
+        timer._cardSystemValue ?? timer.system ?? "";
+
+    timer.description =
+        timer._cardDescriptionValue ??
+        timer.description ??
+        "";
+
+
+    const existingTimeout =
+        textSaveTimers.get(timerId);
+
+    if (existingTimeout) {
+        clearTimeout(existingTimeout);
+    }
+
+
+    const timeoutId =
+        setTimeout(async () => {
+
+            textSaveTimers.delete(
+                timerId
+            );
+
+            try {
+                await saveTextFields(
+                    timerId
+                );
+            } catch (error) {
+                console.error(
+                    "Ошибка сохранения текста:",
+                    error
+                );
+            }
+
+        }, 400);
+
+
+    textSaveTimers.set(
+        timerId,
+        timeoutId
+    );
+}
+
+
+async function saveTextFields(timerId) {
+    const timer =
+        timers.find(
+            item => item.id === timerId
+        );
+
+    if (!timer) {
+        return;
+    }
+
+
+    let systemValue =
+        timer.system || "";
+
+    let descriptionValue =
+        timer.description || "";
+
+
+    const card =
+        timersGrid.querySelector(
+            `.timer-card[data-timer-id="${timerId}"]`
+        );
+
+
+    if (card) {
+        const systemInput =
+            card.querySelector(
+                ".timer-system"
+            );
+
+        const descriptionInput =
+            card.querySelector(
+                ".timer-description"
+            );
+
+        if (systemInput) {
+            systemValue =
+                systemInput.value;
+        }
+
+        if (descriptionInput) {
+            descriptionValue =
+                descriptionInput.value;
+        }
+    }
+
+
+    timer.system =
+        systemValue;
+
+    timer.description =
+        descriptionValue;
+
+
+    const savePromise =
+        api(
+            `/api/timers/${timerId}`,
+            {
+                method: "PUT",
+
+                body: JSON.stringify({
+                    system:
+                        systemValue,
+
+                    description:
+                        descriptionValue
+                })
+            }
+        )
+            .then(() => {
+
+                timer.system =
+                    systemValue;
+
+                timer.description =
+                    descriptionValue;
+            })
+            .finally(() => {
+
+                const currentPromise =
+                    textSavePromises.get(
+                        timerId
+                    );
+
+                if (
+                    currentPromise ===
+                    savePromise
+                ) {
+                    textSavePromises.delete(
+                        timerId
+                    );
+                }
+            });
+
+
+    textSavePromises.set(
+        timerId,
+        savePromise
+    );
+
+
+    await savePromise;
+}
+
+
+async function flushTextSave(timerId) {
+
+    const timeoutId =
+        textSaveTimers.get(
+            timerId
+        );
+
+
+    if (timeoutId) {
+        clearTimeout(timeoutId);
+
+        textSaveTimers.delete(
+            timerId
+        );
+
+        try {
+            await saveTextFields(
+                timerId
+            );
+        } catch (error) {
+            console.error(
+                "Ошибка сохранения текста:",
+                error
+            );
+        }
+    }
+
+
+    const pendingPromise =
+        textSavePromises.get(
+            timerId
+        );
+
+
+    if (pendingPromise) {
+        try {
+            await pendingPromise;
+        } catch (error) {
+            console.error(
+                "Ошибка сохранения текста:",
+                error
+            );
+        }
+    }
+}
+
+
+async function flushAllTextSaves() {
+    const timerIds =
+        new Set([
+            ...textSaveTimers.keys(),
+            ...textSavePromises.keys()
+        ]);
+
+
+    for (const timerId of timerIds) {
+        await flushTextSave(
+            timerId
+        );
+    }
 }
 
 
@@ -305,13 +598,21 @@ function renderTimers() {
 // =========================
 
 function createTimerCard(timer) {
+
     const template =
-        document.getElementById("timerTemplate");
+        document.getElementById(
+            "timerTemplate"
+        );
+
 
     const card =
-        template.content.firstElementChild.cloneNode(true);
+        template.content
+            .firstElementChild
+            .cloneNode(true);
 
-    card.dataset.timerId = String(timer.id);
+
+    card.dataset.timerId =
+        String(timer.id);
 
 
     // =========================
@@ -319,34 +620,54 @@ function createTimerCard(timer) {
     // =========================
 
     const system =
-        card.querySelector(".timer-system");
+        card.querySelector(
+            ".timer-system"
+        );
 
     const description =
-        card.querySelector(".timer-description");
+        card.querySelector(
+            ".timer-description"
+        );
 
     const display =
-        card.querySelector(".timer-display");
+        card.querySelector(
+            ".timer-display"
+        );
 
     const daysInput =
-        card.querySelector(".days-input");
+        card.querySelector(
+            ".days-input"
+        );
 
     const hoursInput =
-        card.querySelector(".hours-input");
+        card.querySelector(
+            ".hours-input"
+        );
 
     const minutesInput =
-        card.querySelector(".minutes-input");
+        card.querySelector(
+            ".minutes-input"
+        );
 
     const secondsInput =
-        card.querySelector(".seconds-input");
+        card.querySelector(
+            ".seconds-input"
+        );
 
     const startButton =
-        card.querySelector(".start-button");
+        card.querySelector(
+            ".start-button"
+        );
 
     const stopButton =
-        card.querySelector(".stop-button");
+        card.querySelector(
+            ".stop-button"
+        );
 
     const deleteButton =
-        card.querySelector(".delete-button");
+        card.querySelector(
+            ".delete-button"
+        );
 
 
     // =========================
@@ -373,7 +694,9 @@ function createTimerCard(timer) {
 
 
     let remainingSeconds =
-        Number(timer.remaining_seconds || 0);
+        Number(
+            timer.remaining_seconds || 0
+        );
 
     let running =
         Boolean(timer.running);
@@ -385,7 +708,9 @@ function createTimerCard(timer) {
 
     function updateDisplay() {
         display.textContent =
-            formatTime(remainingSeconds);
+            formatTime(
+                remainingSeconds
+            );
     }
 
 
@@ -396,22 +721,80 @@ function createTimerCard(timer) {
     // SYSTEM
     // =========================
 
-    system.addEventListener("change", async () => {
-        await updateTimer(timer.id, {
-            system: system.value
-        });
-    });
+    system.addEventListener(
+        "input",
+        () => {
+
+            timer.system =
+                system.value;
+
+            timer._cardSystemValue =
+                system.value;
+
+            scheduleTextSave(timer);
+        }
+    );
+
+
+    system.addEventListener(
+        "blur",
+        async () => {
+
+            timer.system =
+                system.value;
+
+            timer._cardSystemValue =
+                system.value;
+
+            try {
+                await flushTextSave(
+                    timer.id
+                );
+            } catch (error) {
+                console.error(error);
+            }
+        }
+    );
 
 
     // =========================
     // АНОМАЛЬКА
     // =========================
 
-    description.addEventListener("change", async () => {
-        await updateTimer(timer.id, {
-            description: description.value
-        });
-    });
+    description.addEventListener(
+        "input",
+        () => {
+
+            timer.description =
+                description.value;
+
+            timer._cardDescriptionValue =
+                description.value;
+
+            scheduleTextSave(timer);
+        }
+    );
+
+
+    description.addEventListener(
+        "blur",
+        async () => {
+
+            timer.description =
+                description.value;
+
+            timer._cardDescriptionValue =
+                description.value;
+
+            try {
+                await flushTextSave(
+                    timer.id
+                );
+            } catch (error) {
+                console.error(error);
+            }
+        }
+    );
 
 
     // =========================
@@ -419,17 +802,26 @@ function createTimerCard(timer) {
     // =========================
 
     async function saveDuration() {
+
         const days =
-            normalizeNumber(daysInput.value);
+            normalizeNumber(
+                daysInput.value
+            );
 
         const hours =
-            normalizeNumber(hoursInput.value);
+            normalizeNumber(
+                hoursInput.value
+            );
 
         const minutes =
-            normalizeNumber(minutesInput.value);
+            normalizeNumber(
+                minutesInput.value
+            );
 
         const seconds =
-            normalizeNumber(secondsInput.value);
+            normalizeNumber(
+                secondsInput.value
+            );
 
 
         remainingSeconds =
@@ -439,14 +831,17 @@ function createTimerCard(timer) {
             seconds;
 
 
-        await updateTimer(timer.id, {
-            days,
-            hours,
-            minutes,
-            seconds,
-            remaining_seconds:
-                remainingSeconds
-        });
+        await updateTimer(
+            timer.id,
+            {
+                days,
+                hours,
+                minutes,
+                seconds,
+                remaining_seconds:
+                    remainingSeconds
+            }
+        );
 
 
         updateDisplay();
@@ -482,132 +877,177 @@ function createTimerCard(timer) {
     // START
     // =========================
 
-    startButton.addEventListener("click", async () => {
+    startButton.addEventListener(
+        "click",
+        async () => {
 
-        if (remainingSeconds <= 0) {
-            await saveDuration();
-        }
-
-        if (remainingSeconds <= 0) {
-            return;
-        }
-
-        try {
-            const data = await api(
-                `/api/timers/${timer.id}`,
-                {
-                    method: "PUT",
-                    body: JSON.stringify({
-                        running: 1,
-                        remaining_seconds:
-                            remainingSeconds
-                    })
-                }
+            // Перед действием сохраняем текст.
+            await flushTextSave(
+                timer.id
             );
 
 
-            if (data.timer) {
-                remainingSeconds =
-                    Number(
-                        data.timer.remaining_seconds
-                        ?? remainingSeconds
-                    );
+            if (remainingSeconds <= 0) {
+                await saveDuration();
+            }
+
+            if (remainingSeconds <= 0) {
+                return;
             }
 
 
-            running = true;
+            try {
 
-            timer.remaining_seconds =
-                remainingSeconds;
+                const data =
+                    await api(
+                        `/api/timers/${timer.id}`,
+                        {
+                            method: "PUT",
 
-            timer.running = 1;
+                            body:
+                                JSON.stringify({
+                                    running: 1,
 
-            updateDisplay();
+                                    remaining_seconds:
+                                        remainingSeconds
+                                })
+                        }
+                    );
 
-            sortTimers();
 
-            reorderTimerCards();
+                if (data.timer) {
+                    remainingSeconds =
+                        Number(
+                            data.timer
+                                .remaining_seconds
+                            ?? remainingSeconds
+                        );
+                }
 
-        } catch (error) {
-            alert(error.message);
+
+                running = true;
+
+                timer.remaining_seconds =
+                    remainingSeconds;
+
+                timer.running = 1;
+
+                updateDisplay();
+
+                sortTimers();
+
+                reorderTimerCards();
+
+            } catch (error) {
+                alert(error.message);
+            }
         }
-    });
+    );
 
 
     // =========================
     // STOP
     // =========================
 
-    stopButton.addEventListener("click", async () => {
+    stopButton.addEventListener(
+        "click",
+        async () => {
 
-        try {
-            const data = await api(
-                `/api/timers/${timer.id}`,
-                {
-                    method: "PUT",
-                    body: JSON.stringify({
-                        running: 0,
-                        remaining_seconds:
-                            remainingSeconds
-                    })
-                }
+            await flushTextSave(
+                timer.id
             );
 
 
-            if (data.timer) {
-                remainingSeconds =
-                    Number(
-                        data.timer.remaining_seconds
-                        ?? remainingSeconds
+            try {
+
+                const data =
+                    await api(
+                        `/api/timers/${timer.id}`,
+                        {
+                            method: "PUT",
+
+                            body:
+                                JSON.stringify({
+                                    running: 0,
+
+                                    remaining_seconds:
+                                        remainingSeconds
+                                })
+                        }
                     );
+
+
+                if (data.timer) {
+                    remainingSeconds =
+                        Number(
+                            data.timer
+                                .remaining_seconds
+                            ?? remainingSeconds
+                        );
+                }
+
+
+                running = false;
+
+                timer.remaining_seconds =
+                    remainingSeconds;
+
+                timer.running = 0;
+
+                updateDisplay();
+
+                sortTimers();
+
+                reorderTimerCards();
+
+            } catch (error) {
+                alert(error.message);
             }
-
-
-            running = false;
-
-            timer.remaining_seconds =
-                remainingSeconds;
-
-            timer.running = 0;
-
-            updateDisplay();
-
-            sortTimers();
-
-            reorderTimerCards();
-
-        } catch (error) {
-            alert(error.message);
         }
-    });
+    );
 
 
     // =========================
     // DELETE
     // =========================
 
-    deleteButton.addEventListener("click", async () => {
+    deleteButton.addEventListener(
+        "click",
+        async () => {
 
-        if (!confirm("Удалить этот таймер?")) {
-            return;
+            if (
+                !confirm(
+                    "Удалить этот таймер?"
+                )
+            ) {
+                return;
+            }
+
+
+            try {
+
+                // Сначала сохраняем текст
+                // именно этой карточки.
+                await flushTextSave(
+                    timer.id
+                );
+
+
+                await api(
+                    `/api/timers/${timer.id}`,
+                    {
+                        method: "DELETE"
+                    }
+                );
+
+
+                await loadTimers();
+
+            } catch (error) {
+                alert(error.message);
+            }
         }
-
-
-        try {
-            await api(
-                `/api/timers/${timer.id}`,
-                {
-                    method: "DELETE"
-                }
-            );
-
-
-            await loadTimers();
-
-        } catch (error) {
-            alert(error.message);
-        }
-    });
+    );
 
 
     // =========================
@@ -615,104 +1055,130 @@ function createTimerCard(timer) {
     // =========================
 
     const localInterval =
-        setInterval(async () => {
+        setInterval(
+            async () => {
 
-            // Если карточка больше не существует,
-            // останавливаем её локальный интервал.
-            if (!document.body.contains(card)) {
-                clearInterval(localInterval);
-                return;
-            }
-
-
-            if (!running) {
-                return;
-            }
-
-
-            if (remainingSeconds > 0) {
-
-                remainingSeconds--;
-
-                updateDisplay();
-
-
-                // Обновляем объект в массиве
-                const timerData =
-                    timers.find(
-                        item => item.id === timer.id
+                if (
+                    !document.body
+                        .contains(card)
+                ) {
+                    clearInterval(
+                        localInterval
                     );
 
-
-                if (timerData) {
-                    timerData.remaining_seconds =
-                        remainingSeconds;
-
-                    timerData.running =
-                        remainingSeconds > 0
-                            ? 1
-                            : 0;
+                    return;
                 }
 
 
-                sortTimers();
+                if (!running) {
+                    return;
+                }
 
-                reorderTimerCards();
+
+                if (remainingSeconds > 0) {
+
+                    remainingSeconds--;
+
+                    updateDisplay();
 
 
-                // Сохраняем состояние каждые 5 секунд
-                if (remainingSeconds % 5 === 0) {
+                    const timerData =
+                        timers.find(
+                            item =>
+                                item.id ===
+                                timer.id
+                        );
+
+
+                    if (timerData) {
+
+                        timerData
+                            .remaining_seconds =
+                            remainingSeconds;
+
+                        timerData.running =
+                            remainingSeconds > 0
+                                ? 1
+                                : 0;
+                    }
+
+
+                    sortTimers();
+
+                    reorderTimerCards();
+
+
+                    // Сохраняем состояние
+                    // каждые 5 секунд.
+                    if (
+                        remainingSeconds % 5 === 0
+                    ) {
+
+                        try {
+
+                            await api(
+                                `/api/timers/${timer.id}`,
+                                {
+                                    method: "PUT",
+
+                                    body:
+                                        JSON.stringify({
+                                            running:
+                                                remainingSeconds > 0
+                                                    ? 1
+                                                    : 0,
+
+                                            remaining_seconds:
+                                                remainingSeconds
+                                        })
+                                }
+                            );
+
+                        } catch (error) {
+                            console.error(
+                                error
+                            );
+                        }
+                    }
+
+
+                } else {
+
+                    running = false;
+
+                    timer.running = 0;
+
+                    timer.remaining_seconds =
+                        0;
+
 
                     try {
+
                         await api(
                             `/api/timers/${timer.id}`,
                             {
                                 method: "PUT",
-                                body: JSON.stringify({
-                                    running:
-                                        remainingSeconds > 0
-                                            ? 1
-                                            : 0,
 
-                                    remaining_seconds:
-                                        remainingSeconds
-                                })
+                                body:
+                                    JSON.stringify({
+                                        running: 0,
+
+                                        remaining_seconds:
+                                            0
+                                    })
                             }
                         );
 
                     } catch (error) {
-                        console.error(error);
+                        console.error(
+                            error
+                        );
                     }
                 }
 
-
-            } else {
-
-                running = false;
-
-                timer.running = 0;
-
-                timer.remaining_seconds = 0;
-
-
-                try {
-                    await api(
-                        `/api/timers/${timer.id}`,
-                        {
-                            method: "PUT",
-                            body: JSON.stringify({
-                                running: 0,
-                                remaining_seconds: 0
-                            })
-                        }
-                    );
-
-                } catch (error) {
-                    console.error(error);
-                }
-            }
-
-        }, 1000);
+            },
+            1000
+        );
 
 
     return card;
@@ -723,49 +1189,68 @@ function createTimerCard(timer) {
 // ADD TIMER
 // =========================
 
-addTimerButton.addEventListener("click", async () => {
+addTimerButton.addEventListener(
+    "click",
+    async () => {
 
-    try {
-        await api("/api/timers", {
-            method: "POST",
+        try {
 
-            body: JSON.stringify({
-                system: "",
-                description: "",
-
-                days: 0,
-                hours: 0,
-                minutes: 0,
-                seconds: 0,
-
-                remaining_seconds: 0,
-
-                running: 0
-            })
-        });
+            // Самое важное:
+            // сначала сохраняем весь текст,
+            // потом создаём новый таймер.
+            await flushAllTextSaves();
 
 
-        await loadTimers();
+            await api(
+                "/api/timers",
+                {
+                    method: "POST",
 
-    } catch (error) {
-        alert(error.message);
+                    body:
+                        JSON.stringify({
+                            system: "",
+                            description: "",
+
+                            days: 0,
+                            hours: 0,
+                            minutes: 0,
+                            seconds: 0,
+
+                            remaining_seconds: 0,
+
+                            running: 0
+                        })
+                }
+            );
+
+
+            await loadTimers();
+
+        } catch (error) {
+            alert(error.message);
+        }
     }
-});
+);
 
 
 // =========================
 // UPDATE TIMER
 // =========================
 
-async function updateTimer(id, changes) {
+async function updateTimer(
+    id,
+    changes
+) {
 
     try {
+
         await api(
             `/api/timers/${id}`,
             {
                 method: "PUT",
 
-                body: JSON.stringify(changes)
+                body:
+                    JSON.stringify(changes)
             }
         );
 
@@ -796,31 +1281,50 @@ async function updateTimer(id, changes) {
 // SETTINGS
 // =========================
 
-settingsButton.addEventListener("click", () => {
+settingsButton.addEventListener(
+    "click",
+    () => {
 
-    if (currentRole !== "admin") {
-        return;
+        if (currentRole !== "admin") {
+            return;
+        }
+
+
+        settingsMessage.textContent = "";
+
+        adminPasswordInput.value = "";
+        userPasswordInput.value = "";
+
+
+        settingsModal.classList.remove(
+            "hidden"
+        );
+
+        modalOverlay.classList.remove(
+            "hidden"
+        );
     }
-
-
-    settingsMessage.textContent = "";
-
-    adminPasswordInput.value = "";
-    userPasswordInput.value = "";
-
-
-    settingsModal.classList.remove("hidden");
-    modalOverlay.classList.remove("hidden");
-});
+);
 
 
 function closeSettings() {
-    settingsModal.classList.add("hidden");
-    modalOverlay.classList.add("hidden");
+    settingsModal.classList.add(
+        "hidden"
+    );
+
+    modalOverlay.classList.add(
+        "hidden"
+    );
 }
 
 
 closeSettingsButton.addEventListener(
+    "click",
+    closeSettings
+);
+
+
+cancelSettingsButton.addEventListener(
     "click",
     closeSettings
 );
@@ -846,7 +1350,11 @@ settingsForm.addEventListener(
             userPasswordInput.value.trim();
 
 
-        if (!adminPassword && !userPassword) {
+        if (
+            !adminPassword &&
+            !userPassword
+        ) {
+
             settingsMessage.textContent =
                 "Введите хотя бы один новый пароль";
 
@@ -856,17 +1364,23 @@ settingsForm.addEventListener(
 
         try {
 
-            await api("/api/passwords", {
-                method: "PUT",
+            await api(
+                "/api/passwords",
+                {
+                    method: "PUT",
 
-                body: JSON.stringify({
-                    adminPassword:
-                        adminPassword || undefined,
+                    body:
+                        JSON.stringify({
+                            adminPassword:
+                                adminPassword ||
+                                undefined,
 
-                    userPassword:
-                        userPassword || undefined
-                })
-            });
+                            userPassword:
+                                userPassword ||
+                                undefined
+                        })
+                }
+            );
 
 
             settingsMessage.textContent =
@@ -892,7 +1406,10 @@ settingsForm.addEventListener(
 function normalizeNumber(value) {
 
     const number =
-        Number.parseInt(value, 10);
+        Number.parseInt(
+            value,
+            10
+        );
 
 
     if (
@@ -946,7 +1463,8 @@ function formatTime(totalSeconds) {
 
 
 function pad(number) {
-    return String(number).padStart(2, "0");
+    return String(number)
+        .padStart(2, "0");
 }
 
 
