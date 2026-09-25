@@ -22,7 +22,6 @@ const settingsMessage = document.getElementById("settingsMessage");
 
 let currentRole = null;
 let timers = [];
-let intervalId = null;
 
 
 // =========================
@@ -65,11 +64,14 @@ async function checkSession() {
 
         if (data.authenticated) {
             currentRole = data.role;
+
             showTimerPage();
+
             await loadTimers();
         } else {
             showLoginPage();
         }
+
     } catch {
         showLoginPage();
     }
@@ -111,6 +113,7 @@ logoutButton.addEventListener("click", async () => {
         });
 
         closeSettings();
+
         showLoginPage();
 
         passwordInput.value = "";
@@ -151,7 +154,8 @@ function applySavedTheme() {
 
 
 themeButton.addEventListener("click", () => {
-    const isLight = document.body.classList.toggle("light-theme");
+    const isLight =
+        document.body.classList.toggle("light-theme");
 
     localStorage.setItem(
         "theme",
@@ -222,12 +226,13 @@ async function loadTimers() {
 
     } catch (error) {
         console.error(error);
+
         alert("Не удалось загрузить таймеры");
     }
 }
 
 
-// Сортировка массива таймеров
+// Сортировка таймеров по оставшемуся времени
 function sortTimers() {
     timers.sort((a, b) => {
         return Number(a.remaining_seconds || 0)
@@ -236,13 +241,13 @@ function sortTimers() {
 }
 
 
-// Переставляем уже существующие карточки.
-// Карточки НЕ пересоздаются, поэтому таймеры и ввод не сбиваются.
+// Переставляем существующие карточки.
+// Карточки не пересоздаются каждую секунду.
 function reorderTimerCards() {
     const activeElement = document.activeElement;
 
-    // Пока пользователь вводит данные,
-    // ничего не переставляем.
+    // Если пользователь сейчас вводит текст или число,
+    // не двигаем карточки.
     if (
         activeElement &&
         timersGrid.contains(activeElement) &&
@@ -308,12 +313,17 @@ function createTimerCard(timer) {
 
     card.dataset.timerId = String(timer.id);
 
-    const description =
-        card.querySelector(".timer-description");
-    
+
+    // =========================
+    // ELEMENTS
+    // =========================
+
     const system =
         card.querySelector(".timer-system");
-    
+
+    const description =
+        card.querySelector(".timer-description");
+
     const display =
         card.querySelector(".timer-display");
 
@@ -339,14 +349,27 @@ function createTimerCard(timer) {
         card.querySelector(".delete-button");
 
 
-    system.value = timer.system || "";
-    
-    description.value = timer.description || "";
+    // =========================
+    // INITIAL VALUES
+    // =========================
 
-    daysInput.value = timer.days || 0;
-    hoursInput.value = timer.hours || 0;
-    minutesInput.value = timer.minutes || 0;
-    secondsInput.value = timer.seconds || 0;
+    system.value =
+        timer.system || "";
+
+    description.value =
+        timer.description || "";
+
+    daysInput.value =
+        timer.days || 0;
+
+    hoursInput.value =
+        timer.hours || 0;
+
+    minutesInput.value =
+        timer.minutes || 0;
+
+    secondsInput.value =
+        timer.seconds || 0;
 
 
     let remainingSeconds =
@@ -356,6 +379,10 @@ function createTimerCard(timer) {
         Boolean(timer.running);
 
 
+    // =========================
+    // DISPLAY
+    // =========================
+
     function updateDisplay() {
         display.textContent =
             formatTime(remainingSeconds);
@@ -364,17 +391,22 @@ function createTimerCard(timer) {
 
     updateDisplay();
 
+
     // =========================
-    // SYSTEM / DESCRIPTION
+    // SYSTEM
     // =========================
-    
+
     system.addEventListener("change", async () => {
         await updateTimer(timer.id, {
             system: system.value
         });
     });
-    
-    
+
+
+    // =========================
+    // АНОМАЛЬКА
+    // =========================
+
     description.addEventListener("change", async () => {
         await updateTimer(timer.id, {
             description: description.value
@@ -412,13 +444,15 @@ function createTimerCard(timer) {
             hours,
             minutes,
             seconds,
-            remaining_seconds: remainingSeconds
+            remaining_seconds:
+                remainingSeconds
         });
 
 
         updateDisplay();
 
         sortTimers();
+
         reorderTimerCards();
     }
 
@@ -491,6 +525,7 @@ function createTimerCard(timer) {
             updateDisplay();
 
             sortTimers();
+
             reorderTimerCards();
 
         } catch (error) {
@@ -538,6 +573,7 @@ function createTimerCard(timer) {
             updateDisplay();
 
             sortTimers();
+
             reorderTimerCards();
 
         } catch (error) {
@@ -581,6 +617,8 @@ function createTimerCard(timer) {
     const localInterval =
         setInterval(async () => {
 
+            // Если карточка больше не существует,
+            // останавливаем её локальный интервал.
             if (!document.body.contains(card)) {
                 clearInterval(localInterval);
                 return;
@@ -599,6 +637,7 @@ function createTimerCard(timer) {
                 updateDisplay();
 
 
+                // Обновляем объект в массиве
                 const timerData =
                     timers.find(
                         item => item.id === timer.id
@@ -610,7 +649,9 @@ function createTimerCard(timer) {
                         remainingSeconds;
 
                     timerData.running =
-                        remainingSeconds > 0 ? 1 : 0;
+                        remainingSeconds > 0
+                            ? 1
+                            : 0;
                 }
 
 
@@ -650,6 +691,7 @@ function createTimerCard(timer) {
                 running = false;
 
                 timer.running = 0;
+
                 timer.remaining_seconds = 0;
 
 
@@ -686,14 +728,18 @@ addTimerButton.addEventListener("click", async () => {
     try {
         await api("/api/timers", {
             method: "POST",
+
             body: JSON.stringify({
                 system: "",
                 description: "",
+
                 days: 0,
                 hours: 0,
                 minutes: 0,
                 seconds: 0,
+
                 remaining_seconds: 0,
+
                 running: 0
             })
         });
@@ -718,17 +764,23 @@ async function updateTimer(id, changes) {
             `/api/timers/${id}`,
             {
                 method: "PUT",
+
                 body: JSON.stringify(changes)
             }
         );
 
 
         const timer =
-            timers.find(item => item.id === id);
+            timers.find(
+                item => item.id === id
+            );
 
 
         if (timer) {
-            Object.assign(timer, changes);
+            Object.assign(
+                timer,
+                changes
+            );
         }
 
     } catch (error) {
@@ -806,6 +858,7 @@ settingsForm.addEventListener(
 
             await api("/api/passwords", {
                 method: "PUT",
+
                 body: JSON.stringify({
                     adminPassword:
                         adminPassword || undefined,
@@ -864,19 +917,25 @@ function formatTime(totalSeconds) {
 
 
     const days =
-        Math.floor(totalSeconds / 86400);
+        Math.floor(
+            totalSeconds / 86400
+        );
 
     totalSeconds %= 86400;
 
 
     const hours =
-        Math.floor(totalSeconds / 3600);
+        Math.floor(
+            totalSeconds / 3600
+        );
 
     totalSeconds %= 3600;
 
 
     const minutes =
-        Math.floor(totalSeconds / 60);
+        Math.floor(
+            totalSeconds / 60
+        );
 
     const seconds =
         totalSeconds % 60;
