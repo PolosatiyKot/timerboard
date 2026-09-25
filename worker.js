@@ -262,7 +262,8 @@ async function getTimers(request, env) {
         minutes,
         seconds,
         remaining_seconds,
-        running
+        running,
+        started_at
       FROM timers
       ORDER BY id ASC
     `)
