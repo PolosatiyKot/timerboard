@@ -1,955 +1,665 @@
-// ======================================================
-// TIMER BOARD — CLOUDFLARE WORKER
-// ======================================================
+const SESSION_MAX_AGE = 60 * 60 * 24;
+const PBKDF2_ITERATIONS = 100000;
 
 export default {
-    async fetch(request, env) {
-        const url = new URL(request.url);
+  async fetch(request, env) {
+    try {
+      await initializeSettings(env);
 
-        try {
-            // -----------------------------
-            // Авторизация
-            // -----------------------------
+      const url = new URL(request.url);
 
-            if (
-                request.method === "POST" &&
-                url.pathname === "/api/login"
-            ) {
-                return await login(request, env);
-            }
+      if (url.pathname === "/api/login" && request.method === "POST") {
+        return await login(request, env);
+      }
 
+      if (url.pathname === "/api/logout" && request.method === "POST") {
+        return await logout(request, env);
+      }
 
-            // -----------------------------
-            // Выход
-            // -----------------------------
+      if (url.pathname === "/api/session" && request.method === "GET") {
+        return await getSession(request, env);
+      }
 
-            if (
-                request.method === "POST" &&
-                url.pathname === "/api/logout"
-            ) {
-                return jsonResponse(
-                    { success: true },
-                    {
-                        "Set-Cookie":
-                            "session=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0"
-                    }
-                );
-            }
+      if (url.pathname === "/api/timers" && request.method === "GET") {
+        return await getTimers(request, env);
+      }
 
+      if (url.pathname === "/api/timers" && request.method === "POST") {
+        return await createTimer(request, env);
+      }
 
-            // -----------------------------
-            // Информация о текущей сессии
-            // -----------------------------
+      if (
+        url.pathname.startsWith("/api/timers/") &&
+        request.method === "PUT"
+      ) {
+        const id = url.pathname.split("/").pop();
+        return await updateTimer(request, env, id);
+      }
 
-            if (
-                request.method === "GET" &&
-                url.pathname === "/api/session"
-            ) {
-                return await getSession(request, env);
-            }
+      if (
+        url.pathname.startsWith("/api/timers/") &&
+        request.method === "DELETE"
+      ) {
+        const id = url.pathname.split("/").pop();
+        return await deleteTimer(request, env, id);
+      }
 
+      if (url.pathname === "/api/passwords" && request.method === "PUT") {
+        return await changePasswords(request, env);
+      }
 
-            // -----------------------------
-            // Получить таймеры
-            // -----------------------------
+      return env.ASSETS.fetch(request);
 
-            if (
-                request.method === "GET" &&
-                url.pathname === "/api/timers"
-            ) {
-                return await getTimers(request, env);
-            }
+    } catch (error) {
+      console.error(error);
 
-
-            // -----------------------------
-            // Создать таймер
-            // -----------------------------
-
-            if (
-                request.method === "POST" &&
-                url.pathname === "/api/timers"
-            ) {
-                return await createTimer(request, env);
-            }
-
-
-            // -----------------------------
-            // Изменить таймер
-            // -----------------------------
-
-            if (
-                request.method === "PUT" &&
-                url.pathname.startsWith("/api/timers/")
-            ) {
-                const id =
-                    url.pathname.split("/").pop();
-
-                return await updateTimer(
-                    request,
-                    env,
-                    id
-                );
-            }
-
-
-            // -----------------------------
-            // Удалить таймер
-            // -----------------------------
-
-            if (
-                request.method === "DELETE" &&
-                url.pathname.startsWith("/api/timers/")
-            ) {
-                const id =
-                    url.pathname.split("/").pop();
-
-                return await deleteTimer(
-                    request,
-                    env,
-                    id
-                );
-            }
-
-
-            // -----------------------------
-            // Изменение паролей
-            // -----------------------------
-
-            if (
-                request.method === "PUT" &&
-                url.pathname === "/api/passwords"
-            ) {
-                return await updatePasswords(
-                    request,
-                    env
-                );
-            }
-
-
-            // -----------------------------
-            // Если API не найден
-            // -----------------------------
-
-            if (url.pathname.startsWith("/api/")) {
-                return jsonResponse(
-                    {
-                        error: "API endpoint not found"
-                    },
-                    {},
-                    404
-                );
-            }
-
-
-            // -----------------------------
-            // Статические файлы сайта
-            // -----------------------------
-
-            if (env.ASSETS) {
-                return env.ASSETS.fetch(request);
-            }
-
-
-            return new Response(
-                "Timer Board Worker работает.",
-                {
-                    status: 200,
-                    headers: {
-                        "Content-Type":
-                            "text/plain; charset=UTF-8"
-                    }
-                }
-            );
-
-        } catch (error) {
-
-            console.error(error);
-
-            return jsonResponse(
-                {
-                    error:
-                        "Внутренняя ошибка сервера."
-                },
-                {},
-                500
-            );
-        }
+      return json({
+        error: "Внутренняя ошибка сервера"
+      }, 500);
     }
+  }
 };
 
 
-// ======================================================
+// ============================================================
+// INITIAL SETTINGS
+// ============================================================
+
+async function initializeSettings(env) {
+  const admin = await env.DB
+    .prepare("SELECT value FROM settings WHERE key = 'admin_password'")
+    .first();
+
+  const user = await env.DB
+    .prepare("SELECT value FROM settings WHERE key = 'user_password'")
+    .first();
+
+  if (!admin && env.INITIAL_ADMIN_PASSWORD) {
+    const hash = await hashPassword(env.INITIAL_ADMIN_PASSWORD);
+
+    await env.DB
+      .prepare(`
+        INSERT INTO settings (key, value)
+        VALUES ('admin_password', ?)
+      `)
+      .bind(hash)
+      .run();
+  }
+
+  if (!user && env.INITIAL_USER_PASSWORD) {
+    const hash = await hashPassword(env.INITIAL_USER_PASSWORD);
+
+    await env.DB
+      .prepare(`
+        INSERT INTO settings (key, value)
+        VALUES ('user_password', ?)
+      `)
+      .bind(hash)
+      .run();
+  }
+}
+
+
+// ============================================================
 // LOGIN
-// ======================================================
+// ============================================================
 
 async function login(request, env) {
+  const body = await request.json();
+  const password = String(body.password || "");
 
-    const body =
-        await request.json();
+  if (!password) {
+    return json({ error: "Введите пароль" }, 400);
+  }
 
+  const admin = await env.DB
+    .prepare("SELECT value FROM settings WHERE key = 'admin_password'")
+    .first();
 
-    const password =
-        String(body.password || "");
+  const user = await env.DB
+    .prepare("SELECT value FROM settings WHERE key = 'user_password'")
+    .first();
 
+  let role = null;
 
-    if (!password) {
-        return jsonResponse(
-            {
-                error: "Введите пароль."
-            },
-            {},
-            400
-        );
+  if (admin && await verifyPassword(password, admin.value)) {
+    role = "admin";
+  } else if (user && await verifyPassword(password, user.value)) {
+    role = "user";
+  }
+
+  if (!role) {
+    return json({ error: "Неверный пароль" }, 401);
+  }
+
+  const sessionId = crypto.randomUUID();
+  const createdAt = Date.now();
+
+  await env.DB
+    .prepare(`
+      INSERT INTO sessions (id, role, created_at)
+      VALUES (?, ?, ?)
+    `)
+    .bind(sessionId, role, createdAt)
+    .run();
+
+  return new Response(
+    JSON.stringify({ ok: true, role }),
+    {
+      headers: {
+        "Content-Type": "application/json",
+        "Set-Cookie":
+          `session=${sessionId}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${SESSION_MAX_AGE}`
+      }
     }
-
-
-    const admin =
-        await getSetting(
-            env,
-            "admin_password"
-        );
-
-    const user =
-        await getSetting(
-            env,
-            "user_password"
-        );
-
-
-    // Администратор
-    if (
-        admin &&
-        await verifyPassword(
-            password,
-            admin
-        )
-    ) {
-
-        const session =
-            await createSession(
-                env,
-                "admin"
-            );
-
-
-        return jsonResponse(
-            {
-                success: true,
-                role: "admin"
-            },
-            {
-                "Set-Cookie":
-                    createSessionCookie(
-                        session
-                    )
-            }
-        );
-    }
-
-
-    // Пользователь
-    if (
-        user &&
-        await verifyPassword(
-            password,
-            user
-        )
-    ) {
-
-        const session =
-            await createSession(
-                env,
-                "user"
-            );
-
-
-        return jsonResponse(
-            {
-                success: true,
-                role: "user"
-            },
-            {
-                "Set-Cookie":
-                    createSessionCookie(
-                        session
-                    )
-            }
-        );
-    }
-
-
-    return jsonResponse(
-        {
-            error: "Неверный пароль."
-        },
-        {},
-        401
-    );
+  );
 }
 
 
-// ======================================================
+// ============================================================
 // SESSION
-// ======================================================
+// ============================================================
 
-async function createSession(
-    env,
-    role
-) {
+async function getCurrentSession(request, env) {
+  const cookies = request.headers.get("Cookie") || "";
 
-    const id =
-        crypto.randomUUID();
+  const match = cookies.match(/(?:^|;\s*)session=([^;]+)/);
 
+  if (!match) {
+    return null;
+  }
 
-    await env.DB.prepare(
-        `
-        INSERT INTO sessions
-        (id, role, created_at)
-        VALUES (?, ?, ?)
-        `
-    )
-        .bind(
-            id,
-            role,
-            Date.now()
-        )
-        .run();
+  const sessionId = match[1];
 
+  const session = await env.DB
+    .prepare(`
+      SELECT id, role, created_at
+      FROM sessions
+      WHERE id = ?
+    `)
+    .bind(sessionId)
+    .first();
 
-    return id;
+  if (!session) {
+    return null;
+  }
+
+  if (Date.now() - Number(session.created_at) > SESSION_MAX_AGE * 1000) {
+    await env.DB
+      .prepare("DELETE FROM sessions WHERE id = ?")
+      .bind(sessionId)
+      .run();
+
+    return null;
+  }
+
+  return session;
 }
 
 
-function createSessionCookie(
-    session
-) {
+async function getSession(request, env) {
+  const session = await getCurrentSession(request, env);
 
-    return [
-        `session=${session}`,
-        "HttpOnly",
-        "Secure",
-        "SameSite=Strict",
-        "Path=/",
-        "Max-Age=86400"
-    ].join("; ");
+  if (!session) {
+    return json({
+      authenticated: false
+    });
+  }
+
+  return json({
+    authenticated: true,
+    role: session.role
+  });
 }
 
 
-function getSessionId(request) {
+// ============================================================
+// LOGOUT
+// ============================================================
 
-    const cookie =
-        request.headers.get("Cookie") || "";
+async function logout(request, env) {
+  const cookies = request.headers.get("Cookie") || "";
+  const match = cookies.match(/(?:^|;\s*)session=([^;]+)/);
 
+  if (match) {
+    await env.DB
+      .prepare("DELETE FROM sessions WHERE id = ?")
+      .bind(match[1])
+      .run();
+  }
 
-    const match =
-        cookie.match(
-            /(?:^|;\s*)session=([^;]+)/
-        );
-
-
-    return match
-        ? match[1]
-        : null;
-}
-
-
-async function getCurrentSession(
-    request,
-    env
-) {
-
-    const id =
-        getSessionId(request);
-
-
-    if (!id) {
-        return null;
+  return new Response(
+    JSON.stringify({ ok: true }),
+    {
+      headers: {
+        "Content-Type": "application/json",
+        "Set-Cookie":
+          "session=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0"
+      }
     }
-
-
-    const result =
-        await env.DB.prepare(
-            `
-            SELECT id, role
-            FROM sessions
-            WHERE id = ?
-            `
-        )
-            .bind(id)
-            .first();
-
-
-    return result || null;
+  );
 }
 
 
-async function getSession(
-    request,
-    env
-) {
-
-    const session =
-        await getCurrentSession(
-            request,
-            env
-        );
-
-
-    if (!session) {
-
-        return jsonResponse(
-            {
-                authenticated: false
-            }
-        );
-    }
-
-
-    return jsonResponse(
-        {
-            authenticated: true,
-            role: session.role
-        }
-    );
-}
-
-
-// ======================================================
+// ============================================================
 // TIMERS
-// ======================================================
+// ============================================================
 
-async function getTimers(
-    request,
-    env
-) {
+async function getTimers(request, env) {
+  const session = await getCurrentSession(request, env);
 
-    const session =
-        await getCurrentSession(
-            request,
-            env
-        );
+  if (!session) {
+    return json({ error: "Не авторизован" }, 401);
+  }
 
+  const result = await env.DB
+    .prepare(`
+      SELECT
+        id,
+        description,
+        days,
+        hours,
+        minutes,
+        seconds,
+        remaining_seconds,
+        running
+      FROM timers
+      ORDER BY id ASC
+    `)
+    .all();
 
-    if (!session) {
-        return unauthorized();
+  const now = Date.now();
+
+  const timers = result.results.map(timer => {
+    let remaining = Number(timer.remaining_seconds || 0);
+
+    if (Number(timer.running) === 1) {
+      const startedAt = Number(timer.started_at || 0);
+
+      if (startedAt > 0) {
+        const elapsed = Math.floor((now - startedAt) / 1000);
+        remaining = Math.max(0, remaining - elapsed);
+      }
     }
 
+    return {
+      ...timer,
+      remaining_seconds: remaining,
+      running: remaining > 0 && Number(timer.running) === 1 ? 1 : 0
+    };
+  });
 
-    const result =
-        await env.DB.prepare(
-            `
-            SELECT
-                id,
-                description,
-                days,
-                hours,
-                minutes,
-                seconds,
-                remaining_seconds,
-                running
-            FROM timers
-            ORDER BY id ASC
-            `
-        ).all();
-
-
-    return jsonResponse(
-        {
-            timers:
-                result.results || []
-        }
-    );
+  return json(timers);
 }
 
 
-// ======================================================
-// CREATE TIMER
-// ======================================================
+async function createTimer(request, env) {
+  const session = await getCurrentSession(request, env);
 
-async function createTimer(
-    request,
-    env
-) {
+  if (!session) {
+    return json({ error: "Не авторизован" }, 401);
+  }
 
-    const session =
-        await getCurrentSession(
-            request,
-            env
-        );
+  const body = await request.json();
 
+  const description = String(body.description || "");
 
-    if (!session) {
-        return unauthorized();
-    }
+  const days = positiveInteger(body.days);
+  const hours = positiveInteger(body.hours);
+  const minutes = positiveInteger(body.minutes);
+  const seconds = positiveInteger(body.seconds);
 
+  const remaining =
+    days * 86400 +
+    hours * 3600 +
+    minutes * 60 +
+    seconds;
 
-    const body =
-        await request.json();
-
-
-    const description =
-        String(
-            body.description || ""
-        );
-
-
-    const days =
-        positiveNumber(
-            body.days
-        );
-
-    const hours =
-        positiveNumber(
-            body.hours
-        );
-
-    const minutes =
-        positiveNumber(
-            body.minutes
-        );
-
-    const seconds =
-        positiveNumber(
-            body.seconds
-        );
-
-
-    const total =
-        days * 86400 +
-        hours * 3600 +
-        minutes * 60 +
-        seconds;
-
-
-    const result =
-        await env.DB.prepare(
-            `
-            INSERT INTO timers
-            (
-                description,
-                days,
-                hours,
-                minutes,
-                seconds,
-                remaining_seconds,
-                running
-            )
-            VALUES (?, ?, ?, ?, ?, ?, 0)
-            `
-        )
-            .bind(
-                description,
-                days,
-                hours,
-                minutes,
-                seconds,
-                total
-            )
-            .run();
-
-
-    return jsonResponse(
-        {
-            success: true,
-            id: result.meta.last_row_id
-        },
-        {},
-        201
-    );
-}
-
-
-// ======================================================
-// UPDATE TIMER
-// ======================================================
-
-async function updateTimer(
-    request,
-    env,
-    id
-) {
-
-    const session =
-        await getCurrentSession(
-            request,
-            env
-        );
-
-
-    if (!session) {
-        return unauthorized();
-    }
-
-
-    const body =
-        await request.json();
-
-
-    const description =
-        String(
-            body.description || ""
-        );
-
-
-    const days =
-        positiveNumber(
-            body.days
-        );
-
-    const hours =
-        positiveNumber(
-            body.hours
-        );
-
-    const minutes =
-        positiveNumber(
-            body.minutes
-        );
-
-    const seconds =
-        positiveNumber(
-            body.seconds
-        );
-
-
-    const remaining =
-        positiveNumber(
-            body.remaining_seconds
-        );
-
-
-    await env.DB.prepare(
-        `
-        UPDATE timers
-        SET
-            description = ?,
-            days = ?,
-            hours = ?,
-            minutes = ?,
-            seconds = ?,
-            remaining_seconds = ?,
-            running = ?
-        WHERE id = ?
-        `
+  const result = await env.DB
+    .prepare(`
+      INSERT INTO timers (
+        description,
+        days,
+        hours,
+        minutes,
+        seconds,
+        remaining_seconds,
+        running
+      )
+      VALUES (?, ?, ?, ?, ?, ?, 0)
+    `)
+    .bind(
+      description,
+      days,
+      hours,
+      minutes,
+      seconds,
+      remaining
     )
-        .bind(
-            description,
-            days,
-            hours,
-            minutes,
-            seconds,
-            remaining,
-            body.running ? 1 : 0,
-            id
-        )
-        .run();
+    .run();
 
-
-    return jsonResponse(
-        {
-            success: true
-        }
-    );
+  return json({
+    ok: true,
+    id: result.meta.last_row_id
+  }, 201);
 }
 
 
-// ======================================================
-// DELETE TIMER
-// ======================================================
+async function updateTimer(request, env, id) {
+  const session = await getCurrentSession(request, env);
 
-async function deleteTimer(
-    request,
-    env,
-    id
-) {
+  if (!session) {
+    return json({ error: "Не авторизован" }, 401);
+  }
 
-    const session =
-        await getCurrentSession(
-            request,
-            env
-        );
+  const existing = await env.DB
+    .prepare("SELECT * FROM timers WHERE id = ?")
+    .bind(id)
+    .first();
 
+  if (!existing) {
+    return json({ error: "Таймер не найден" }, 404);
+  }
 
-    if (!session) {
-        return unauthorized();
+  const body = await request.json();
+
+  let description = existing.description;
+  let days = Number(existing.days);
+  let hours = Number(existing.hours);
+  let minutes = Number(existing.minutes);
+  let seconds = Number(existing.seconds);
+  let remaining = Number(existing.remaining_seconds);
+  let running = Number(existing.running);
+  let startedAt = existing.started_at
+    ? Number(existing.started_at)
+    : 0;
+
+  if ("description" in body) {
+    description = String(body.description || "");
+  }
+
+  if (
+    "days" in body ||
+    "hours" in body ||
+    "minutes" in body ||
+    "seconds" in body
+  ) {
+    days = positiveInteger(body.days);
+    hours = positiveInteger(body.hours);
+    minutes = positiveInteger(body.minutes);
+    seconds = positiveInteger(body.seconds);
+
+    remaining =
+      days * 86400 +
+      hours * 3600 +
+      minutes * 60 +
+      seconds;
+
+    running = 0;
+    startedAt = 0;
+  }
+
+  if ("remaining_seconds" in body) {
+    remaining = Math.max(
+      0,
+      positiveInteger(body.remaining_seconds)
+    );
+  }
+
+  if ("running" in body) {
+    running = body.running ? 1 : 0;
+
+    if (running === 1 && remaining > 0) {
+      startedAt = Date.now();
+    } else {
+      running = 0;
+      startedAt = 0;
     }
+  }
 
+  if (running === 0) {
+    startedAt = 0;
+  }
 
-    await env.DB.prepare(
-        `
-        DELETE FROM timers
-        WHERE id = ?
-        `
+  await env.DB
+    .prepare(`
+      UPDATE timers
+      SET
+        description = ?,
+        days = ?,
+        hours = ?,
+        minutes = ?,
+        seconds = ?,
+        remaining_seconds = ?,
+        running = ?,
+        started_at = ?
+      WHERE id = ?
+    `)
+    .bind(
+      description,
+      days,
+      hours,
+      minutes,
+      seconds,
+      remaining,
+      running,
+      startedAt || null,
+      id
     )
-        .bind(id)
-        .run();
+    .run();
 
-
-    return jsonResponse(
-        {
-            success: true
-        }
-    );
+  return json({
+    ok: true,
+    timer: {
+      id: Number(id),
+      description,
+      days,
+      hours,
+      minutes,
+      seconds,
+      remaining_seconds: remaining,
+      running
+    }
+  });
 }
 
 
-// ======================================================
+async function deleteTimer(request, env, id) {
+  const session = await getCurrentSession(request, env);
+
+  if (!session) {
+    return json({ error: "Не авторизован" }, 401);
+  }
+
+  await env.DB
+    .prepare("DELETE FROM timers WHERE id = ?")
+    .bind(id)
+    .run();
+
+  return json({
+    ok: true
+  });
+}
+
+
+// ============================================================
 // PASSWORDS
-// ======================================================
+// ============================================================
 
-async function updatePasswords(
-    request,
-    env
-) {
+async function changePasswords(request, env) {
+  const session = await getCurrentSession(request, env);
 
-    const session =
-        await getCurrentSession(
-            request,
-            env
-        );
+  if (!session || session.role !== "admin") {
+    return json({
+      error: "Только администратор может менять пароли"
+    }, 403);
+  }
 
+  const body = await request.json();
 
-    if (
-        !session ||
-        session.role !== "admin"
-    ) {
-        return forbidden();
-    }
+  if (body.adminPassword) {
+    const hash = await hashPassword(body.adminPassword);
 
+    await env.DB
+      .prepare(`
+        UPDATE settings
+        SET value = ?
+        WHERE key = 'admin_password'
+      `)
+      .bind(hash)
+      .run();
+  }
 
-    const body =
-        await request.json();
+  if (body.userPassword) {
+    const hash = await hashPassword(body.userPassword);
 
+    await env.DB
+      .prepare(`
+        UPDATE settings
+        SET value = ?
+        WHERE key = 'user_password'
+      `)
+      .bind(hash)
+      .run();
+  }
 
-    const newAdmin =
-        String(
-            body.admin_password || ""
-        ).trim();
-
-
-    const newUser =
-        String(
-            body.user_password || ""
-        ).trim();
-
-
-    if (
-        !newAdmin &&
-        !newUser
-    ) {
-
-        return jsonResponse(
-            {
-                error:
-                    "Необходимо указать хотя бы один пароль."
-            },
-            {},
-            400
-        );
-    }
-
-
-    if (newAdmin) {
-
-        const hash =
-            await hashPassword(
-                newAdmin
-            );
-
-
-        await setSetting(
-            env,
-            "admin_password",
-            hash
-        );
-    }
-
-
-    if (newUser) {
-
-        const hash =
-            await hashPassword(
-                newUser
-            );
-
-
-        await setSetting(
-            env,
-            "user_password",
-            hash
-        );
-    }
-
-
-    return jsonResponse(
-        {
-            success: true
-        }
-    );
+  return json({
+    ok: true
+  });
 }
 
 
-// ======================================================
+// ============================================================
 // PASSWORD HASHING
-// ======================================================
+// ============================================================
 
-async function hashPassword(
-    password
-) {
+async function hashPassword(password) {
+  const salt = crypto.randomUUID();
 
-    const data =
-        new TextEncoder()
-            .encode(password);
+  const encoder = new TextEncoder();
 
+  const key = await crypto.subtle.importKey(
+    "raw",
+    encoder.encode(password),
+    {
+      name: "PBKDF2"
+    },
+    false,
+    ["deriveBits"]
+  );
 
-    const hash =
-        await crypto.subtle.digest(
-            "SHA-256",
-            data
-        );
-
-
-    return [...new Uint8Array(hash)]
-        .map(
-            byte =>
-                byte
-                    .toString(16)
-                    .padStart(2, "0")
-        )
-        .join("");
-}
-
-
-async function verifyPassword(
-    password,
-    hash
-) {
-
-    const calculated =
-        await hashPassword(
-            password
-        );
-
-
-    return calculated === hash;
-}
-
-
-// ======================================================
-// DATABASE SETTINGS
-// ======================================================
-
-async function getSetting(
-    env,
-    key
-) {
-
-    const result =
-        await env.DB.prepare(
-            `
-            SELECT value
-            FROM settings
-            WHERE key = ?
-            `
-        )
-            .bind(key)
-            .first();
-
-
-    return result
-        ? result.value
-        : null;
-}
-
-
-async function setSetting(
-    env,
+  const bits = await crypto.subtle.deriveBits(
+    {
+      name: "PBKDF2",
+      salt: encoder.encode(salt),
+      iterations: PBKDF2_ITERATIONS,
+      hash: "SHA-256"
+    },
     key,
-    value
-) {
+    256
+  );
 
-    await env.DB.prepare(
-        `
-        INSERT INTO settings (key, value)
-        VALUES (?, ?)
-        ON CONFLICT(key)
-        DO UPDATE SET value = excluded.value
-        `
-    )
-        .bind(
-            key,
-            value
-        )
-        .run();
+  const hash = bytesToHex(new Uint8Array(bits));
+
+  return `pbkdf2$${PBKDF2_ITERATIONS}$${salt}$${hash}`;
 }
 
 
-// ======================================================
-// HELPERS
-// ======================================================
+async function verifyPassword(password, stored) {
+  try {
+    const parts = stored.split("$");
 
-function positiveNumber(
-    value
-) {
-
-    const number =
-        Number(value);
-
-
-    if (
-        !Number.isFinite(number) ||
-        number < 0
-    ) {
-        return 0;
+    if (parts.length !== 4 || parts[0] !== "pbkdf2") {
+      return false;
     }
 
+    const iterations = Number(parts[1]);
+    const salt = parts[2];
+    const expectedHash = parts[3];
 
-    return Math.floor(number);
+    const encoder = new TextEncoder();
+
+    const key = await crypto.subtle.importKey(
+      "raw",
+      encoder.encode(password),
+      {
+        name: "PBKDF2"
+      },
+      false,
+      ["deriveBits"]
+    );
+
+    const bits = await crypto.subtle.deriveBits(
+      {
+        name: "PBKDF2",
+        salt: encoder.encode(salt),
+        iterations,
+        hash: "SHA-256"
+      },
+      key,
+      256
+    );
+
+    const actualHash = bytesToHex(
+      new Uint8Array(bits)
+    );
+
+    return constantTimeEqual(
+      actualHash,
+      expectedHash
+    );
+
+  } catch {
+    return false;
+  }
 }
 
 
-function jsonResponse(
-    data,
-    extraHeaders = {},
-    status = 200
-) {
-
-    return new Response(
-        JSON.stringify(data),
-        {
-            status,
-            headers: {
-                "Content-Type":
-                    "application/json; charset=UTF-8",
-
-                ...extraHeaders
-            }
-        }
-    );
+function bytesToHex(bytes) {
+  return Array.from(bytes)
+    .map(byte => byte.toString(16).padStart(2, "0"))
+    .join("");
 }
 
 
-function unauthorized() {
+function constantTimeEqual(a, b) {
+  if (a.length !== b.length) {
+    return false;
+  }
 
-    return jsonResponse(
-        {
-            error:
-                "Необходима авторизация."
-        },
-        {},
-        401
-    );
+  let result = 0;
+
+  for (let i = 0; i < a.length; i++) {
+    result |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+
+  return result === 0;
 }
 
 
-function forbidden() {
+// ============================================================
+// HELPERS
+// ============================================================
 
-    return jsonResponse(
-        {
-            error:
-                "Недостаточно прав."
-        },
-        {},
-        403
-    );
+function positiveInteger(value) {
+  const number = Number.parseInt(value, 10);
+
+  if (!Number.isFinite(number) || number < 0) {
+    return 0;
+  }
+
+  return number;
+}
+
+
+function json(data, status = 200) {
+  return new Response(
+    JSON.stringify(data),
+    {
+      status,
+      headers: {
+        "Content-Type": "application/json"
+      }
+    }
+  );
 }
