@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Timer Board</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+    <!-- =========================
+         СТРАНИЦА ВХОДА
+    ========================== -->
+    <section id="loginPage" class="page login-page">
+
+        <div class="login-card">
+
+            <h1>Timer Board</h1>
+
+            <p class="login-subtitle">
+                Введите пароль для входа
+            </p>
+
+            <form id="loginForm">
+
+                <label for="passwordInput">
+                    Пароль
+                </label>
+
+                <input
+                    type="password"
+                    id="passwordInput"
+                    placeholder="Введите пароль"
+                    autocomplete="current-password"
+                    required
+                >
+
+                <button type="submit" class="primary-button">
+                    Войти
+                </button>
+
+                <p id="loginError" class="error-message"></p>
+
+            </form>
+
+        </div>
+
+    </section>
+
+
+    <!-- =========================
+         СТРАНИЦА ТАЙМЕРОВ
+    ========================== -->
+    <section id="timerPage" class="page timer-page hidden">
+
+        <header class="top-bar">
+
+            <div>
+                <h1>Таймеры</h1>
+            </div>
+
+            <!-- Кнопка видна только администратору -->
+            <button
+                id="settingsButton"
+                class="secondary-button hidden"
+                type="button"
+            >
+                Настройки
+            </button>
+
+        </header>
+
+
+        <main class="timers-container">
+
+            <div id="timersGrid" class="timers-grid">
+
+                <!-- Таймеры будут добавляться сюда JavaScript -->
+
+                <!-- Кнопка добавления нового таймера -->
+                <button
+                    id="addTimerButton"
+                    class="add-timer-card"
+                    type="button"
+                    aria-label="Добавить таймер"
+                >
+                    <span class="plus-icon">+</span>
+                    <span>Добавить таймер</span>
+                </button>
+
+            </div>
+
+        </main>
+
+    </section>
+
+
+    <!-- =========================
+         ОКНО НАСТРОЕК АДМИНИСТРАТОРА
+    ========================== -->
+    <div
+        id="settingsModal"
+        class="modal hidden"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="settingsTitle"
+    >
+
+        <div class="modal-overlay" id="modalOverlay"></div>
+
+        <div class="modal-content">
+
+            <div class="modal-header">
+
+                <h2 id="settingsTitle">
+                    Настройки
+                </h2>
+
+                <button
+                    id="closeSettingsButton"
+                    class="close-button"
+                    type="button"
+                    aria-label="Закрыть"
+                >
+                    ×
+                </button>
+
+            </div>
+
+
+            <form id="settingsForm">
+
+                <div class="form-group">
+
+                    <label for="adminPasswordInput">
+                        Новый пароль администратора
+                    </label>
+
+                    <input
+                        type="password"
+                        id="adminPasswordInput"
+                        placeholder="Новый пароль"
+                        autocomplete="new-password"
+                    >
+
+                </div>
+
+
+                <div class="form-group">
+
+                    <label for="userPasswordInput">
+                        Новый пароль пользователя
+                    </label>
+
+                    <input
+                        type="password"
+                        id="userPasswordInput"
+                        placeholder="Новый пароль"
+                        autocomplete="new-password"
+                    >
+
+                </div>
+
+
+                <p id="settingsMessage" class="message"></p>
+
+
+                <div class="modal-actions">
+
+                    <button
+                        type="button"
+                        id="cancelSettingsButton"
+                        class="secondary-button"
+                    >
+                        Отмена
+                    </button>
+
+                    <button
+                        type="submit"
+                        class="primary-button"
+                    >
+                        Сохранить
+                    </button>
+
+                </div>
+
+            </form>
+
+        </div>
+
+    </div>
+
+
+    <!-- =========================
+         ШАБЛОН КАРТОЧКИ ТАЙМЕРА
+    ========================== -->
+    <template id="timerTemplate">
+
+        <article class="timer-card">
+
+            <div class="timer-card-header">
+
+                <input
+                    type="text"
+                    class="timer-description"
+                    placeholder="Описание таймера"
+                    maxlength="100"
+                >
+
+            </div>
+
+
+            <div class="timer-display">
+                00:00:00:00
+            </div>
+
+
+            <div class="timer-settings">
+
+                <div class="time-input-group">
+
+                    <label>
+                        Дни
+                        <input
+                            type="number"
+                            class="days-input"
+                            min="0"
+                            value="0"
+                        >
+                    </label>
+
+                    <label>
+                        Часы
+                        <input
+                            type="number"
+                            class="hours-input"
+                            min="0"
+                            max="23"
+                            value="0"
+                        >
+                    </label>
+
+                    <label>
+                        Минуты
+                        <input
+                            type="number"
+                            class="minutes-input"
+                            min="0"
+                            max="59"
+                            value="0"
+                        >
+                    </label>
+
+                    <label>
+                        Секунды
+                        <input
+                            type="number"
+                            class="seconds-input"
+                            min="0"
+                            max="59"
+                            value="0"
+                        >
+                    </label>
+
+                </div>
+
+            </div>
+
+
+            <div class="timer-actions">
+
+                <button
+                    type="button"
+                    class="start-button"
+                >
+                    Старт
+                </button>
+
+                <button
+                    type="button"
+                    class="stop-button"
+                >
+                    Стоп
+                </button>
+
+                <button
+                    type="button"
+                    class="delete-button"
+                >
+                    Удалить
+                </button>
+
+            </div>
+
+        </article>
+
+    </template>
+
+
+    <!-- JavaScript -->
+    <script src="app.js"></script>
+
+</body>
+</html>
