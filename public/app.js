@@ -31,7 +31,7 @@ const viewerPasswordInput =
 
 const settingsMessage =
     document.getElementById("settingsMessage");
-
+ 
 
 let currentRole = null;
 let timers = [];
