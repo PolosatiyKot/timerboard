@@ -73,7 +73,6 @@ async function checkSession() {
         } else {
             showLoginPage();
         }
-
     } catch (error) {
         console.error(error);
         showLoginPage();
@@ -176,7 +175,6 @@ logoutButton.addEventListener("click", async () => {
         loginError.textContent = "";
 
         passwordInput.focus();
-
     } catch (error) {
         alert(error.message || "Не удалось выйти");
     }
@@ -254,7 +252,6 @@ loginForm.addEventListener("submit", async event => {
 
         showTimerPage();
         await loadTimers();
-
     } catch (error) {
         loginError.textContent =
             error.message || "Неверный пароль";
@@ -275,9 +272,7 @@ async function loadTimers() {
             : (data.timers || []);
 
         sortTimers();
-
         renderTimers();
-
     } catch (error) {
         console.error(error);
         alert("Не удалось загрузить таймеры");
@@ -300,8 +295,6 @@ function sortTimers() {
 function reorderTimerCards() {
     const activeElement = document.activeElement;
 
-    // Пока пользователь печатает в поле,
-    // не двигаем карточки.
     if (
         activeElement &&
         timersGrid.contains(activeElement) &&
@@ -411,23 +404,23 @@ function createTimerCard(timer) {
         timer.description || "";
 
     daysInput.value =
-        timer.days || 0;
+        normalizeNumber(timer.days);
 
     hoursInput.value =
-        timer.hours || 0;
+        normalizeNumber(timer.hours);
 
     minutesInput.value =
-        timer.minutes || 0;
+        normalizeNumber(timer.minutes);
 
     secondsInput.value =
-        timer.seconds || 0;
+        normalizeNumber(timer.seconds);
 
 
     let remainingSeconds =
         Number(timer.remaining_seconds || 0);
 
     let running =
-        Boolean(timer.running);
+        Number(timer.running) === 1;
 
 
     // =========================
@@ -492,22 +485,31 @@ function createTimerCard(timer) {
         const seconds =
             normalizeNumber(secondsInput.value);
 
-
-        remainingSeconds =
+        const newRemainingSeconds =
             days * 86400 +
             hours * 3600 +
             minutes * 60 +
             seconds;
 
+        remainingSeconds = newRemainingSeconds;
+
+        /*
+         * Если пользователь меняет длительность,
+         * таймер останавливается. Это предотвращает
+         * конфликт между новым временем и старым started_at.
+         */
+        if (running) {
+            running = false;
+        }
 
         await updateTimer(timer.id, {
             days,
             hours,
             minutes,
             seconds,
-            remaining_seconds: remainingSeconds
+            remaining_seconds: remainingSeconds,
+            running: 0
         });
-
 
         updateDisplay();
     }
@@ -574,8 +576,16 @@ function createTimerCard(timer) {
 
             running = true;
 
-            updateDisplay();
+            const timerData =
+                timers.find(item => item.id === timer.id);
 
+            if (timerData) {
+                timerData.running = 1;
+                timerData.remaining_seconds =
+                    remainingSeconds;
+            }
+
+            updateDisplay();
         } catch (error) {
             alert(error.message);
         }
@@ -614,8 +624,16 @@ function createTimerCard(timer) {
 
             running = false;
 
-            updateDisplay();
+            const timerData =
+                timers.find(item => item.id === timer.id);
 
+            if (timerData) {
+                timerData.running = 0;
+                timerData.remaining_seconds =
+                    remainingSeconds;
+            }
+
+            updateDisplay();
         } catch (error) {
             alert(error.message);
         }
@@ -644,7 +662,6 @@ function createTimerCard(timer) {
             );
 
             await loadTimers();
-
         } catch (error) {
             alert(error.message);
         }
@@ -666,33 +683,36 @@ function createTimerCard(timer) {
             return;
         }
 
-
         if (remainingSeconds > 0) {
 
             remainingSeconds--;
 
             updateDisplay();
 
-
             const timerData =
                 timers.find(
                     item => item.id === timer.id
                 );
 
-
             if (timerData) {
                 timerData.remaining_seconds =
                     remainingSeconds;
+
+                timerData.running =
+                    remainingSeconds > 0 ? 1 : 0;
+            }
+
+            if (remainingSeconds > 0) {
+                sortTimers();
+                reorderTimerCards();
             }
 
 
-            sortTimers();
-
-            reorderTimerCards();
-
-
             // Сохраняем каждые 5 секунд
-            if (remainingSeconds % 5 === 0) {
+            if (
+                remainingSeconds > 0 &&
+                remainingSeconds % 5 === 0
+            ) {
 
                 try {
                     await api(
@@ -700,17 +720,12 @@ function createTimerCard(timer) {
                         {
                             method: "PUT",
                             body: JSON.stringify({
-                                running:
-                                    remainingSeconds > 0
-                                        ? 1
-                                        : 0,
-
+                                running: 1,
                                 remaining_seconds:
                                     remainingSeconds
                             })
                         }
                     );
-
                 } catch (error) {
                     console.error(error);
                 }
@@ -721,8 +736,19 @@ function createTimerCard(timer) {
 
             running = false;
 
-            try {
+            const timerData =
+                timers.find(
+                    item => item.id === timer.id
+                );
 
+            if (timerData) {
+                timerData.remaining_seconds = 0;
+                timerData.running = 0;
+            }
+
+            updateDisplay();
+
+            try {
                 await api(
                     `/api/timers/${timer.id}`,
                     {
@@ -733,7 +759,6 @@ function createTimerCard(timer) {
                         })
                     }
                 );
-
             } catch (error) {
                 console.error(error);
             }
@@ -758,7 +783,7 @@ addTimerButton.addEventListener("click", async () => {
 
     try {
 
-        await api("/api/timers", {
+        const data = await api("/api/timers", {
             method: "POST",
             body: JSON.stringify({
                 anomaly: "",
@@ -779,20 +804,26 @@ addTimerButton.addEventListener("click", async () => {
         await loadTimers();
 
 
-        // Сразу ставим курсор в поле Аномалька
-        const cards =
-            timersGrid.querySelectorAll(".timer-card");
+        /*
+         * Ищем именно созданный таймер по ID,
+         * а не предполагаем, что он находится
+         * последним после сортировки.
+         */
+        if (data.timer && data.timer.id != null) {
 
-        if (cards.length > 0) {
+            const newCard =
+                timersGrid.querySelector(
+                    `.timer-card[data-timer-id="${data.timer.id}"]`
+                );
 
-            const newestCard =
-                cards[cards.length - 1];
+            if (newCard) {
 
-            const anomalyInput =
-                newestCard.querySelector(".timer-anomaly");
+                const anomalyInput =
+                    newCard.querySelector(".timer-anomaly");
 
-            if (anomalyInput) {
-                anomalyInput.focus();
+                if (anomalyInput) {
+                    anomalyInput.focus();
+                }
             }
         }
 
@@ -810,7 +841,7 @@ async function updateTimer(id, changes) {
 
     try {
 
-        await api(
+        const data = await api(
             `/api/timers/${id}`,
             {
                 method: "PUT",
@@ -825,6 +856,10 @@ async function updateTimer(id, changes) {
 
         if (timer) {
             Object.assign(timer, changes);
+
+            if (data.timer) {
+                Object.assign(timer, data.timer);
+            }
         }
 
     } catch (error) {
