@@ -99,6 +99,7 @@ function showTimerPage() {
     }
 }
 
+
 // =========================
 // LOGOUT
 // =========================
@@ -122,6 +123,7 @@ logoutButton.addEventListener("click", async () => {
     }
 });
 
+
 // =========================
 // THEME
 // =========================
@@ -133,6 +135,7 @@ function updateThemeButton() {
         themeButton.textContent = "☀️ Светлая тема";
     }
 }
+
 
 function applySavedTheme() {
     const savedTheme = localStorage.getItem("theme");
@@ -146,6 +149,7 @@ function applySavedTheme() {
     updateThemeButton();
 }
 
+
 themeButton.addEventListener("click", () => {
     const isLight = document.body.classList.toggle("light-theme");
 
@@ -157,7 +161,9 @@ themeButton.addEventListener("click", () => {
     updateThemeButton();
 });
 
+
 applySavedTheme();
+
 
 // =========================
 // LOGIN
@@ -188,10 +194,12 @@ loginForm.addEventListener("submit", async (event) => {
         passwordInput.value = "";
 
         showTimerPage();
+
         await loadTimers();
 
     } catch (error) {
-        loginError.textContent = error.message || "Неверный пароль";
+        loginError.textContent =
+            error.message || "Неверный пароль";
     }
 });
 
@@ -208,10 +216,7 @@ async function loadTimers() {
             ? data
             : (data.timers || []);
 
-        timers.sort((a, b) => {
-            return Number(a.remaining_seconds || 0)
-                - Number(b.remaining_seconds || 0);
-        });
+        sortTimers();
 
         renderTimers();
 
@@ -221,9 +226,23 @@ async function loadTimers() {
     }
 }
 
+
+// Сортировка массива таймеров
+function sortTimers() {
+    timers.sort((a, b) => {
+        return Number(a.remaining_seconds || 0)
+            - Number(b.remaining_seconds || 0);
+    });
+}
+
+
+// Переставляем уже существующие карточки.
+// Карточки НЕ пересоздаются, поэтому таймеры и ввод не сбиваются.
 function reorderTimerCards() {
     const activeElement = document.activeElement;
 
+    // Пока пользователь вводит данные,
+    // ничего не переставляем.
     if (
         activeElement &&
         timersGrid.contains(activeElement) &&
@@ -235,34 +254,40 @@ function reorderTimerCards() {
         return;
     }
 
-    const cardMap = new Map(
-        Array.from(timersGrid.querySelectorAll(".timer-card"))
-            .map(card => [
-                Number(card.dataset.timerId),
-                card
-            ])
+    const cards = Array.from(
+        timersGrid.querySelectorAll(".timer-card")
     );
-        Array.from(timersGrid.querySelectorAll(".timer-card"))
-            .map(card => [
-                Number(card.dataset.timerId),
-                card
-            ])
-    );
+
+    const cardMap = new Map();
+
+    for (const card of cards) {
+        cardMap.set(
+            Number(card.dataset.timerId),
+            card
+        );
+    }
 
     for (const timer of timers) {
-        const card = cardMap.get(Number(timer.id));
+        const card = cardMap.get(
+            Number(timer.id)
+        );
 
         if (card) {
-            timersGrid.insertBefore(card, addTimerButton);
+            timersGrid.insertBefore(
+                card,
+                addTimerButton
+            );
         }
     }
 }
+
 
 function renderTimers() {
     timersGrid.innerHTML = "";
 
     timers.forEach(timer => {
         const card = createTimerCard(timer);
+
         timersGrid.appendChild(card);
     });
 
@@ -270,23 +295,46 @@ function renderTimers() {
 }
 
 
+// =========================
+// CREATE TIMER CARD
+// =========================
+
 function createTimerCard(timer) {
-    const template = document.getElementById("timerTemplate");
-    const card = template.content.firstElementChild.cloneNode(true);
+    const template =
+        document.getElementById("timerTemplate");
+
+    const card =
+        template.content.firstElementChild.cloneNode(true);
 
     card.dataset.timerId = String(timer.id);
-    
-    const description = card.querySelector(".timer-description");
-    const display = card.querySelector(".timer-display");
 
-    const daysInput = card.querySelector(".days-input");
-    const hoursInput = card.querySelector(".hours-input");
-    const minutesInput = card.querySelector(".minutes-input");
-    const secondsInput = card.querySelector(".seconds-input");
+    const description =
+        card.querySelector(".timer-description");
 
-    const startButton = card.querySelector(".start-button");
-    const stopButton = card.querySelector(".stop-button");
-    const deleteButton = card.querySelector(".delete-button");
+    const display =
+        card.querySelector(".timer-display");
+
+    const daysInput =
+        card.querySelector(".days-input");
+
+    const hoursInput =
+        card.querySelector(".hours-input");
+
+    const minutesInput =
+        card.querySelector(".minutes-input");
+
+    const secondsInput =
+        card.querySelector(".seconds-input");
+
+    const startButton =
+        card.querySelector(".start-button");
+
+    const stopButton =
+        card.querySelector(".stop-button");
+
+    const deleteButton =
+        card.querySelector(".delete-button");
+
 
     description.value = timer.description || "";
 
@@ -295,16 +343,27 @@ function createTimerCard(timer) {
     minutesInput.value = timer.minutes || 0;
     secondsInput.value = timer.seconds || 0;
 
-    let remainingSeconds = Number(timer.remaining_seconds || 0);
-    let running = Boolean(timer.running);
+
+    let remainingSeconds =
+        Number(timer.remaining_seconds || 0);
+
+    let running =
+        Boolean(timer.running);
+
 
     function updateDisplay() {
-        display.textContent = formatTime(remainingSeconds);
+        display.textContent =
+            formatTime(remainingSeconds);
     }
+
 
     updateDisplay();
 
-    // Сохраняем описание
+
+    // =========================
+    // DESCRIPTION
+    // =========================
+
     description.addEventListener("change", async () => {
         await updateTimer(timer.id, {
             description: description.value
@@ -312,18 +371,30 @@ function createTimerCard(timer) {
     });
 
 
-    // Сохраняем продолжительность
+    // =========================
+    // DURATION
+    // =========================
+
     async function saveDuration() {
-        const days = normalizeNumber(daysInput.value);
-        const hours = normalizeNumber(hoursInput.value);
-        const minutes = normalizeNumber(minutesInput.value);
-        const seconds = normalizeNumber(secondsInput.value);
+        const days =
+            normalizeNumber(daysInput.value);
+
+        const hours =
+            normalizeNumber(hoursInput.value);
+
+        const minutes =
+            normalizeNumber(minutesInput.value);
+
+        const seconds =
+            normalizeNumber(secondsInput.value);
+
 
         remainingSeconds =
             days * 86400 +
             hours * 3600 +
             minutes * 60 +
             seconds;
+
 
         await updateTimer(timer.id, {
             days,
@@ -333,18 +404,41 @@ function createTimerCard(timer) {
             remaining_seconds: remainingSeconds
         });
 
+
         updateDisplay();
+
+        sortTimers();
+        reorderTimerCards();
     }
 
 
-    daysInput.addEventListener("change", saveDuration);
-    hoursInput.addEventListener("change", saveDuration);
-    minutesInput.addEventListener("change", saveDuration);
-    secondsInput.addEventListener("change", saveDuration);
+    daysInput.addEventListener(
+        "change",
+        saveDuration
+    );
+
+    hoursInput.addEventListener(
+        "change",
+        saveDuration
+    );
+
+    minutesInput.addEventListener(
+        "change",
+        saveDuration
+    );
+
+    secondsInput.addEventListener(
+        "change",
+        saveDuration
+    );
 
 
+    // =========================
     // START
+    // =========================
+
     startButton.addEventListener("click", async () => {
+
         if (remainingSeconds <= 0) {
             await saveDuration();
         }
@@ -354,22 +448,39 @@ function createTimerCard(timer) {
         }
 
         try {
-            const data = await api(`/api/timers/${timer.id}`, {
-                method: "PUT",
-                body: JSON.stringify({
-                    running: 1,
-                    remaining_seconds: remainingSeconds
-                })
-            });
+            const data = await api(
+                `/api/timers/${timer.id}`,
+                {
+                    method: "PUT",
+                    body: JSON.stringify({
+                        running: 1,
+                        remaining_seconds:
+                            remainingSeconds
+                    })
+                }
+            );
+
 
             if (data.timer) {
-                remainingSeconds = Number(
-                    data.timer.remaining_seconds ?? remainingSeconds
-                );
+                remainingSeconds =
+                    Number(
+                        data.timer.remaining_seconds
+                        ?? remainingSeconds
+                    );
             }
+
 
             running = true;
+
+            timer.remaining_seconds =
+                remainingSeconds;
+
+            timer.running = 1;
+
             updateDisplay();
+
+            sortTimers();
+            reorderTimerCards();
 
         } catch (error) {
             alert(error.message);
@@ -377,25 +488,46 @@ function createTimerCard(timer) {
     });
 
 
+    // =========================
     // STOP
+    // =========================
+
     stopButton.addEventListener("click", async () => {
+
         try {
-            const data = await api(`/api/timers/${timer.id}`, {
-                method: "PUT",
-                body: JSON.stringify({
-                    running: 0,
-                    remaining_seconds: remainingSeconds
-                })
-            });
+            const data = await api(
+                `/api/timers/${timer.id}`,
+                {
+                    method: "PUT",
+                    body: JSON.stringify({
+                        running: 0,
+                        remaining_seconds:
+                            remainingSeconds
+                    })
+                }
+            );
+
 
             if (data.timer) {
-                remainingSeconds = Number(
-                    data.timer.remaining_seconds ?? remainingSeconds
-                );
+                remainingSeconds =
+                    Number(
+                        data.timer.remaining_seconds
+                        ?? remainingSeconds
+                    );
             }
 
+
             running = false;
+
+            timer.remaining_seconds =
+                remainingSeconds;
+
+            timer.running = 0;
+
             updateDisplay();
+
+            sortTimers();
+            reorderTimerCards();
 
         } catch (error) {
             alert(error.message);
@@ -403,16 +535,25 @@ function createTimerCard(timer) {
     });
 
 
+    // =========================
     // DELETE
+    // =========================
+
     deleteButton.addEventListener("click", async () => {
+
         if (!confirm("Удалить этот таймер?")) {
             return;
         }
 
+
         try {
-            await api(`/api/timers/${timer.id}`, {
-                method: "DELETE"
-            });
+            await api(
+                `/api/timers/${timer.id}`,
+                {
+                    method: "DELETE"
+                }
+            );
+
 
             await loadTimers();
 
@@ -422,64 +563,103 @@ function createTimerCard(timer) {
     });
 
 
-    // Локальный отсчёт
-    const localInterval = setInterval(async () => {
-        if (!document.body.contains(card)) {
-            clearInterval(localInterval);
-            return;
-        }
+    // =========================
+    // LOCAL COUNTDOWN
+    // =========================
 
-        if (!running) {
-            return;
-        }
+    const localInterval =
+        setInterval(async () => {
 
-       if (remainingSeconds > 0) {
-    remainingSeconds--;
-    updateDisplay();
+            if (!document.body.contains(card)) {
+                clearInterval(localInterval);
+                return;
+            }
 
-    const timerData = timers.find(item => item.id === timer.id);
 
-    if (timerData) {
-        timerData.remaining_seconds = remainingSeconds;
-    }
+            if (!running) {
+                return;
+            }
 
-    timers.sort((a, b) => {
-        return Number(a.remaining_seconds || 0)
-            - Number(b.remaining_seconds || 0);
-    });
 
-reorderTimerCards();
-           
-    // Периодически сохраняем состояние
-            if (remainingSeconds % 5 === 0) {
+            if (remainingSeconds > 0) {
+
+                remainingSeconds--;
+
+                updateDisplay();
+
+
+                const timerData =
+                    timers.find(
+                        item => item.id === timer.id
+                    );
+
+
+                if (timerData) {
+                    timerData.remaining_seconds =
+                        remainingSeconds;
+
+                    timerData.running =
+                        remainingSeconds > 0 ? 1 : 0;
+                }
+
+
+                sortTimers();
+
+                reorderTimerCards();
+
+
+                // Сохраняем состояние каждые 5 секунд
+                if (remainingSeconds % 5 === 0) {
+
+                    try {
+                        await api(
+                            `/api/timers/${timer.id}`,
+                            {
+                                method: "PUT",
+                                body: JSON.stringify({
+                                    running:
+                                        remainingSeconds > 0
+                                            ? 1
+                                            : 0,
+
+                                    remaining_seconds:
+                                        remainingSeconds
+                                })
+                            }
+                        );
+
+                    } catch (error) {
+                        console.error(error);
+                    }
+                }
+
+
+            } else {
+
+                running = false;
+
+                timer.running = 0;
+                timer.remaining_seconds = 0;
+
+
                 try {
-                    await api(`/api/timers/${timer.id}`, {
-                        method: "PUT",
-                        body: JSON.stringify({
-                            running: remainingSeconds > 0 ? 1 : 0,
-                            remaining_seconds: remainingSeconds
-                        })
-                    });
+                    await api(
+                        `/api/timers/${timer.id}`,
+                        {
+                            method: "PUT",
+                            body: JSON.stringify({
+                                running: 0,
+                                remaining_seconds: 0
+                            })
+                        }
+                    );
+
                 } catch (error) {
                     console.error(error);
                 }
             }
-        } else {
-            running = false;
 
-            try {
-                await api(`/api/timers/${timer.id}`, {
-                    method: "PUT",
-                    body: JSON.stringify({
-                        running: 0,
-                        remaining_seconds: 0
-                    })
-                });
-            } catch (error) {
-                console.error(error);
-            }
-        }
-    }, 1000);
+        }, 1000);
 
 
     return card;
@@ -491,6 +671,7 @@ reorderTimerCards();
 // =========================
 
 addTimerButton.addEventListener("click", async () => {
+
     try {
         await api("/api/timers", {
             method: "POST",
@@ -505,6 +686,7 @@ addTimerButton.addEventListener("click", async () => {
             })
         });
 
+
         await loadTimers();
 
     } catch (error) {
@@ -518,20 +700,29 @@ addTimerButton.addEventListener("click", async () => {
 // =========================
 
 async function updateTimer(id, changes) {
-    try {
-        await api(`/api/timers/${id}`, {
-            method: "PUT",
-            body: JSON.stringify(changes)
-        });
 
-        const timer = timers.find(item => item.id === id);
+    try {
+        await api(
+            `/api/timers/${id}`,
+            {
+                method: "PUT",
+                body: JSON.stringify(changes)
+            }
+        );
+
+
+        const timer =
+            timers.find(item => item.id === id);
+
 
         if (timer) {
             Object.assign(timer, changes);
         }
 
     } catch (error) {
+
         console.error(error);
+
         alert(error.message);
     }
 }
@@ -542,13 +733,17 @@ async function updateTimer(id, changes) {
 // =========================
 
 settingsButton.addEventListener("click", () => {
+
     if (currentRole !== "admin") {
         return;
     }
 
+
     settingsMessage.textContent = "";
+
     adminPasswordInput.value = "";
     userPasswordInput.value = "";
+
 
     settingsModal.classList.remove("hidden");
     modalOverlay.classList.remove("hidden");
@@ -561,39 +756,68 @@ function closeSettings() {
 }
 
 
-closeSettingsButton.addEventListener("click", closeSettings);
-modalOverlay.addEventListener("click", closeSettings);
+closeSettingsButton.addEventListener(
+    "click",
+    closeSettings
+);
 
 
-settingsForm.addEventListener("submit", async (event) => {
-    event.preventDefault();
+modalOverlay.addEventListener(
+    "click",
+    closeSettings
+);
 
-    const adminPassword = adminPasswordInput.value.trim();
-    const userPassword = userPasswordInput.value.trim();
 
-    if (!adminPassword && !userPassword) {
-        settingsMessage.textContent = "Введите хотя бы один новый пароль";
-        return;
+settingsForm.addEventListener(
+    "submit",
+    async (event) => {
+
+        event.preventDefault();
+
+
+        const adminPassword =
+            adminPasswordInput.value.trim();
+
+        const userPassword =
+            userPasswordInput.value.trim();
+
+
+        if (!adminPassword && !userPassword) {
+            settingsMessage.textContent =
+                "Введите хотя бы один новый пароль";
+
+            return;
+        }
+
+
+        try {
+
+            await api("/api/passwords", {
+                method: "PUT",
+                body: JSON.stringify({
+                    adminPassword:
+                        adminPassword || undefined,
+
+                    userPassword:
+                        userPassword || undefined
+                })
+            });
+
+
+            settingsMessage.textContent =
+                "Пароли успешно изменены";
+
+
+            adminPasswordInput.value = "";
+            userPasswordInput.value = "";
+
+        } catch (error) {
+
+            settingsMessage.textContent =
+                error.message;
+        }
     }
-
-    try {
-        await api("/api/passwords", {
-            method: "PUT",
-            body: JSON.stringify({
-                adminPassword: adminPassword || undefined,
-                userPassword: userPassword || undefined
-            })
-        });
-
-        settingsMessage.textContent = "Пароли успешно изменены";
-
-        adminPasswordInput.value = "";
-        userPasswordInput.value = "";
-
-    } catch (error) {
-        settingsMessage.textContent = error.message;
-    }
-});
+);
 
 
 // =========================
@@ -601,27 +825,50 @@ settingsForm.addEventListener("submit", async (event) => {
 // =========================
 
 function normalizeNumber(value) {
-    const number = Number.parseInt(value, 10);
 
-    if (!Number.isFinite(number) || number < 0) {
+    const number =
+        Number.parseInt(value, 10);
+
+
+    if (
+        !Number.isFinite(number) ||
+        number < 0
+    ) {
         return 0;
     }
+
 
     return number;
 }
 
 
 function formatTime(totalSeconds) {
-    totalSeconds = Math.max(0, Number(totalSeconds) || 0);
 
-    const days = Math.floor(totalSeconds / 86400);
+    totalSeconds =
+        Math.max(
+            0,
+            Number(totalSeconds) || 0
+        );
+
+
+    const days =
+        Math.floor(totalSeconds / 86400);
+
     totalSeconds %= 86400;
 
-    const hours = Math.floor(totalSeconds / 3600);
+
+    const hours =
+        Math.floor(totalSeconds / 3600);
+
     totalSeconds %= 3600;
 
-    const minutes = Math.floor(totalSeconds / 60);
-    const seconds = totalSeconds % 60;
+
+    const minutes =
+        Math.floor(totalSeconds / 60);
+
+    const seconds =
+        totalSeconds % 60;
+
 
     return `${days}д ${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
 }
