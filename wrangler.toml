@@ -10,3 +10,9 @@ binding = "ASSETS"
 binding = "DB"
 database_name = "timer-board-db"
 database_id = "db815890-1997-4df4-921e-30ce83cb6c78"
+
+[secrets]
+required = [
+  "INITIAL_ADMIN_PASSWORD",
+  "INITIAL_USER_PASSWORD"
+]
