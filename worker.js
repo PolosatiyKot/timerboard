@@ -1,3 +1,4 @@
+```javascript
 const SESSION_MAX_AGE = 60 * 60 * 24;
 const PBKDF2_ITERATIONS = 100000;
 
@@ -9,10 +10,8 @@ export default {
 
       await initializeSettings(env);
 
-
       const url =
         new URL(request.url);
-
 
       if (
         url.pathname === "/api/login" &&
@@ -25,7 +24,6 @@ export default {
         );
       }
 
-
       if (
         url.pathname === "/api/logout" &&
         request.method === "POST"
@@ -36,7 +34,6 @@ export default {
           env
         );
       }
-
 
       if (
         url.pathname === "/api/session" &&
@@ -49,7 +46,6 @@ export default {
         );
       }
 
-
       if (
         url.pathname === "/api/timers" &&
         request.method === "GET"
@@ -60,7 +56,6 @@ export default {
           env
         );
       }
-
 
       if (
         url.pathname === "/api/timers" &&
@@ -73,7 +68,6 @@ export default {
         );
       }
 
-
       if (
         url.pathname.startsWith("/api/timers/") &&
         request.method === "PUT"
@@ -84,14 +78,12 @@ export default {
             .split("/")
             .pop();
 
-
         return await updateTimer(
           request,
           env,
           id
         );
       }
-
 
       if (
         url.pathname.startsWith("/api/timers/") &&
@@ -103,14 +95,12 @@ export default {
             .split("/")
             .pop();
 
-
         return await deleteTimer(
           request,
           env,
           id
         );
       }
-
 
       if (
         url.pathname === "/api/passwords" &&
@@ -123,13 +113,11 @@ export default {
         );
       }
 
-
       return env.ASSETS.fetch(request);
 
     } catch (error) {
 
       console.error(error);
-
 
       return json(
         {
@@ -156,7 +144,6 @@ async function initializeSettings(env) {
       )
       .first();
 
-
   const user =
     await env.DB
       .prepare(
@@ -164,14 +151,12 @@ async function initializeSettings(env) {
       )
       .first();
 
-
   const viewer =
     await env.DB
       .prepare(
         "SELECT value FROM settings WHERE key = 'viewer_password'"
       )
       .first();
-
 
   if (
     !admin &&
@@ -183,7 +168,6 @@ async function initializeSettings(env) {
         env.INITIAL_ADMIN_PASSWORD
       );
 
-
     await env.DB
       .prepare(`
         INSERT INTO settings (key, value)
@@ -192,7 +176,6 @@ async function initializeSettings(env) {
       .bind(hash)
       .run();
   }
-
 
   if (
     !user &&
@@ -204,7 +187,6 @@ async function initializeSettings(env) {
         env.INITIAL_USER_PASSWORD
       );
 
-
     await env.DB
       .prepare(`
         INSERT INTO settings (key, value)
@@ -213,7 +195,6 @@ async function initializeSettings(env) {
       .bind(hash)
       .run();
   }
-
 
   if (
     !viewer &&
@@ -224,7 +205,6 @@ async function initializeSettings(env) {
       await hashPassword(
         env.INITIAL_VIEWER_PASSWORD
       );
-
 
     await env.DB
       .prepare(`
@@ -249,12 +229,10 @@ async function login(
   const body =
     await request.json();
 
-
   const password =
     String(
       body.password || ""
     );
-
 
   if (!password) {
 
@@ -267,14 +245,12 @@ async function login(
     );
   }
 
-
   const admin =
     await env.DB
       .prepare(
         "SELECT value FROM settings WHERE key = 'admin_password'"
       )
       .first();
-
 
   const user =
     await env.DB
@@ -283,7 +259,6 @@ async function login(
       )
       .first();
 
-
   const viewer =
     await env.DB
       .prepare(
@@ -291,11 +266,8 @@ async function login(
       )
       .first();
 
-
   let role = null;
 
-
-  // Сначала проверяем admin.
   if (
     admin &&
     await verifyPassword(
@@ -327,7 +299,6 @@ async function login(
     role = "viewer";
   }
 
-
   if (!role) {
 
     return json(
@@ -339,14 +310,11 @@ async function login(
     );
   }
 
-
   const sessionId =
     crypto.randomUUID();
 
-
   const createdAt =
     Date.now();
-
 
   await env.DB
     .prepare(`
@@ -363,7 +331,6 @@ async function login(
       createdAt
     )
     .run();
-
 
   return new Response(
     JSON.stringify({
@@ -395,21 +362,17 @@ async function getCurrentSession(
   const cookies =
     request.headers.get("Cookie") || "";
 
-
   const match =
     cookies.match(
       /(?:^|;\s*)session=([^;]+)/
     );
 
-
   if (!match) {
     return null;
   }
 
-
   const sessionId =
     match[1];
-
 
   const session =
     await env.DB
@@ -424,11 +387,9 @@ async function getCurrentSession(
       .bind(sessionId)
       .first();
 
-
   if (!session) {
     return null;
   }
-
 
   if (
     Date.now() -
@@ -443,10 +404,8 @@ async function getCurrentSession(
       .bind(sessionId)
       .run();
 
-
     return null;
   }
-
 
   return session;
 }
@@ -467,14 +426,12 @@ async function getSession(
       env
     );
 
-
   if (!session) {
 
     return json({
       authenticated: false
     });
   }
-
 
   return json({
     authenticated: true,
@@ -495,12 +452,10 @@ async function logout(
   const cookies =
     request.headers.get("Cookie") || "";
 
-
   const match =
     cookies.match(
       /(?:^|;\s*)session=([^;]+)/
     );
-
 
   if (match) {
 
@@ -511,7 +466,6 @@ async function logout(
       .bind(match[1])
       .run();
   }
-
 
   return new Response(
     JSON.stringify({
@@ -546,7 +500,6 @@ async function getTimers(
       env
     );
 
-
   if (!session) {
 
     return json(
@@ -558,13 +511,13 @@ async function getTimers(
     );
   }
 
-
   const result =
     await env.DB
       .prepare(`
         SELECT
           id,
           system,
+          anomaly,
           description,
           days,
           hours,
@@ -578,10 +531,8 @@ async function getTimers(
       `)
       .all();
 
-
   const now =
     Date.now();
-
 
   const timers =
     result.results.map(
@@ -592,7 +543,6 @@ async function getTimers(
             timer.remaining_seconds || 0
           );
 
-
         if (
           Number(timer.running) === 1
         ) {
@@ -602,14 +552,12 @@ async function getTimers(
               timer.started_at || 0
             );
 
-
           if (startedAt > 0) {
 
             const elapsed =
               Math.floor(
                 (now - startedAt) / 1000
               );
-
 
             remaining =
               Math.max(
@@ -619,13 +567,15 @@ async function getTimers(
           }
         }
 
-
         return {
 
           ...timer,
 
           system:
             timer.system || "",
+
+          anomaly:
+            timer.anomaly || "",
 
           description:
             timer.description || "",
@@ -641,7 +591,6 @@ async function getTimers(
         };
       }
     );
-
 
   return json(timers);
 }
@@ -662,7 +611,6 @@ async function createTimer(
       env
     );
 
-
   if (!session) {
 
     return json(
@@ -674,8 +622,6 @@ async function createTimer(
     );
   }
 
-
-  // Viewer может только смотреть.
   if (
     session.role === "viewer"
   ) {
@@ -689,46 +635,43 @@ async function createTimer(
     );
   }
 
-
   const body =
     await request.json();
-
 
   const system =
     String(
       body.system || ""
     );
 
+  const anomaly =
+    String(
+      body.anomaly || ""
+    );
 
   const description =
     String(
       body.description || ""
     );
 
-
   const days =
     positiveInteger(
       body.days
     );
-
 
   const hours =
     positiveInteger(
       body.hours
     );
 
-
   const minutes =
     positiveInteger(
       body.minutes
     );
 
-
   const seconds =
     positiveInteger(
       body.seconds
     );
-
 
   const remaining =
     days * 86400 +
@@ -736,12 +679,12 @@ async function createTimer(
     minutes * 60 +
     seconds;
 
-
   const result =
     await env.DB
       .prepare(`
         INSERT INTO timers (
           system,
+          anomaly,
           description,
           days,
           hours,
@@ -750,10 +693,11 @@ async function createTimer(
           remaining_seconds,
           running
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, 0)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)
       `)
       .bind(
         system,
+        anomaly,
         description,
         days,
         hours,
@@ -762,7 +706,6 @@ async function createTimer(
         remaining
       )
       .run();
-
 
   return json(
     {
@@ -790,7 +733,6 @@ async function updateTimer(
       env
     );
 
-
   if (!session) {
 
     return json(
@@ -802,8 +744,6 @@ async function updateTimer(
     );
   }
 
-
-  // Viewer не может изменять таймеры.
   if (
     session.role === "viewer"
   ) {
@@ -817,7 +757,6 @@ async function updateTimer(
     );
   }
 
-
   const existing =
     await env.DB
       .prepare(
@@ -825,7 +764,6 @@ async function updateTimer(
       )
       .bind(id)
       .first();
-
 
   if (!existing) {
 
@@ -838,54 +776,48 @@ async function updateTimer(
     );
   }
 
-
   const body =
     await request.json();
-
 
   let system =
     String(
       existing.system || ""
     );
 
+  let anomaly =
+    String(
+      existing.anomaly || ""
+    );
 
   let description =
     String(
       existing.description || ""
     );
 
-
   let days =
     Number(existing.days);
-
 
   let hours =
     Number(existing.hours);
 
-
   let minutes =
     Number(existing.minutes);
 
-
   let seconds =
     Number(existing.seconds);
-
 
   let remaining =
     Number(
       existing.remaining_seconds
     );
 
-
   let running =
     Number(existing.running);
-
 
   let startedAt =
     existing.started_at
       ? Number(existing.started_at)
       : 0;
-
 
   if (
     "system" in body
@@ -897,6 +829,15 @@ async function updateTimer(
       );
   }
 
+  if (
+    "anomaly" in body
+  ) {
+
+    anomaly =
+      String(
+        body.anomaly || ""
+      );
+  }
 
   if (
     "description" in body
@@ -907,7 +848,6 @@ async function updateTimer(
         body.description || ""
       );
   }
-
 
   if (
     "days" in body ||
@@ -921,24 +861,20 @@ async function updateTimer(
         body.days
       );
 
-
     hours =
       positiveInteger(
         body.hours
       );
-
 
     minutes =
       positiveInteger(
         body.minutes
       );
 
-
     seconds =
       positiveInteger(
         body.seconds
       );
-
 
     remaining =
       days * 86400 +
@@ -946,12 +882,10 @@ async function updateTimer(
       minutes * 60 +
       seconds;
 
-
     running = 0;
 
     startedAt = 0;
   }
-
 
   if (
     "remaining_seconds" in body
@@ -966,7 +900,6 @@ async function updateTimer(
       );
   }
 
-
   if (
     "running" in body
   ) {
@@ -975,7 +908,6 @@ async function updateTimer(
       body.running
         ? 1
         : 0;
-
 
     if (
       running === 1 &&
@@ -993,7 +925,6 @@ async function updateTimer(
     }
   }
 
-
   if (
     running === 0
   ) {
@@ -1001,12 +932,12 @@ async function updateTimer(
     startedAt = 0;
   }
 
-
   await env.DB
     .prepare(`
       UPDATE timers
       SET
         system = ?,
+        anomaly = ?,
         description = ?,
         days = ?,
         hours = ?,
@@ -1019,6 +950,7 @@ async function updateTimer(
     `)
     .bind(
       system,
+      anomaly,
       description,
       days,
       hours,
@@ -1031,7 +963,6 @@ async function updateTimer(
     )
     .run();
 
-
   return json({
     ok: true,
 
@@ -1041,6 +972,8 @@ async function updateTimer(
         Number(id),
 
       system,
+
+      anomaly,
 
       description,
 
@@ -1080,7 +1013,6 @@ async function deleteTimer(
       env
     );
 
-
   if (!session) {
 
     return json(
@@ -1092,8 +1024,6 @@ async function deleteTimer(
     );
   }
 
-
-  // Viewer не может удалять таймеры.
   if (
     session.role === "viewer"
   ) {
@@ -1107,14 +1037,12 @@ async function deleteTimer(
     );
   }
 
-
   await env.DB
     .prepare(
       "DELETE FROM timers WHERE id = ?"
     )
     .bind(id)
     .run();
-
 
   return json({
     ok: true
@@ -1137,7 +1065,6 @@ async function changePasswords(
       env
     );
 
-
   if (
     !session ||
     session.role !== "admin"
@@ -1151,7 +1078,6 @@ async function changePasswords(
       403
     );
   }
-
 
   const body =
     await request.json();
@@ -1169,7 +1095,6 @@ async function changePasswords(
       await hashPassword(
         body.adminPassword
       );
-
 
     await env.DB
       .prepare(`
@@ -1195,7 +1120,6 @@ async function changePasswords(
         body.userPassword
       );
 
-
     await env.DB
       .prepare(`
         UPDATE settings
@@ -1220,14 +1144,12 @@ async function changePasswords(
         body.viewerPassword
       );
 
-
     const existingViewer =
       await env.DB
         .prepare(
           "SELECT value FROM settings WHERE key = 'viewer_password'"
         )
         .first();
-
 
     if (existingViewer) {
 
@@ -1258,7 +1180,6 @@ async function changePasswords(
     }
   }
 
-
   return json({
     ok: true
   });
@@ -1276,10 +1197,8 @@ async function hashPassword(
   const salt =
     crypto.randomUUID();
 
-
   const encoder =
     new TextEncoder();
-
 
   const key =
     await crypto.subtle.importKey(
@@ -1291,7 +1210,6 @@ async function hashPassword(
       false,
       ["deriveBits"]
     );
-
 
   const bits =
     await crypto.subtle.deriveBits(
@@ -1311,12 +1229,10 @@ async function hashPassword(
       256
     );
 
-
   const hash =
     bytesToHex(
       new Uint8Array(bits)
     );
-
 
   return (
     `pbkdf2$${PBKDF2_ITERATIONS}$${salt}$${hash}`
@@ -1334,7 +1250,6 @@ async function verifyPassword(
     const parts =
       stored.split("$");
 
-
     if (
       parts.length !== 4 ||
       parts[0] !== "pbkdf2"
@@ -1343,22 +1258,17 @@ async function verifyPassword(
       return false;
     }
 
-
     const iterations =
       Number(parts[1]);
-
 
     const salt =
       parts[2];
 
-
     const expectedHash =
       parts[3];
 
-
     const encoder =
       new TextEncoder();
-
 
     const key =
       await crypto.subtle.importKey(
@@ -1370,7 +1280,6 @@ async function verifyPassword(
         false,
         ["deriveBits"]
       );
-
 
     const bits =
       await crypto.subtle.deriveBits(
@@ -1389,12 +1298,10 @@ async function verifyPassword(
         256
       );
 
-
     const actualHash =
       bytesToHex(
         new Uint8Array(bits)
       );
-
 
     return constantTimeEqual(
       actualHash,
@@ -1439,9 +1346,7 @@ function constantTimeEqual(
     return false;
   }
 
-
   let result = 0;
-
 
   for (
     let i = 0;
@@ -1453,7 +1358,6 @@ function constantTimeEqual(
       a.charCodeAt(i) ^
       b.charCodeAt(i);
   }
-
 
   return result === 0;
 }
@@ -1469,7 +1373,6 @@ function positiveInteger(
       10
     );
 
-
   if (
     !Number.isFinite(number) ||
     number < 0
@@ -1477,7 +1380,6 @@ function positiveInteger(
 
     return 0;
   }
-
 
   return number;
 }
@@ -1500,3 +1402,4 @@ function json(
     }
   );
 }
+```
