@@ -222,7 +222,26 @@ async function loadTimers() {
 }
 
 function reorderTimerCards() {
+    const activeElement = document.activeElement;
+
+    if (
+        activeElement &&
+        timersGrid.contains(activeElement) &&
+        (
+            activeElement.tagName === "INPUT" ||
+            activeElement.tagName === "TEXTAREA"
+        )
+    ) {
+        return;
+    }
+
     const cardMap = new Map(
+        Array.from(timersGrid.querySelectorAll(".timer-card"))
+            .map(card => [
+                Number(card.dataset.timerId),
+                card
+            ])
+    );
         Array.from(timersGrid.querySelectorAll(".timer-card"))
             .map(card => [
                 Number(card.dataset.timerId),
