@@ -6,6 +6,7 @@ const passwordInput = document.getElementById("passwordInput");
 const loginError = document.getElementById("loginError");
 
 const settingsButton = document.getElementById("settingsButton");
+const logoutButton = document.getElementById("logoutButton");
 const timersGrid = document.getElementById("timersGrid");
 const addTimerButton = document.getElementById("addTimerButton");
 
@@ -97,6 +98,28 @@ function showTimerPage() {
     }
 }
 
+// =========================
+// LOGOUT
+// =========================
+
+logoutButton.addEventListener("click", async () => {
+    try {
+        await api("/api/logout", {
+            method: "POST"
+        });
+
+        closeSettings();
+        showLoginPage();
+
+        passwordInput.value = "";
+        loginError.textContent = "";
+
+        passwordInput.focus();
+
+    } catch (error) {
+        alert(error.message || "Не удалось выйти");
+    }
+});
 
 // =========================
 // LOGIN
