@@ -9,20 +9,12 @@ export default {
 
       const url = new URL(request.url);
 
-      // =========================
-      // LOGIN
-      // =========================
-
       if (
         url.pathname === "/api/login" &&
         request.method === "POST"
       ) {
         return await login(request, env);
       }
-
-      // =========================
-      // LOGOUT
-      // =========================
 
       if (
         url.pathname === "/api/logout" &&
@@ -31,20 +23,12 @@ export default {
         return await logout(request, env);
       }
 
-      // =========================
-      // SESSION
-      // =========================
-
       if (
         url.pathname === "/api/session" &&
         request.method === "GET"
       ) {
         return await getSession(request, env);
       }
-
-      // =========================
-      // GET TIMERS
-      // =========================
 
       if (
         url.pathname === "/api/timers" &&
@@ -53,10 +37,6 @@ export default {
         return await getTimers(request, env);
       }
 
-      // =========================
-      // CREATE TIMER
-      // =========================
-
       if (
         url.pathname === "/api/timers" &&
         request.method === "POST"
@@ -64,57 +44,28 @@ export default {
         return await createTimer(request, env);
       }
 
-      // =========================
-      // UPDATE TIMER
-      // =========================
-
       if (
         url.pathname.startsWith("/api/timers/") &&
         request.method === "PUT"
       ) {
         const id = url.pathname.split("/").pop();
-
-        return await updateTimer(
-          request,
-          env,
-          id
-        );
+        return await updateTimer(request, env, id);
       }
-
-      // =========================
-      // DELETE TIMER
-      // =========================
 
       if (
         url.pathname.startsWith("/api/timers/") &&
         request.method === "DELETE"
       ) {
         const id = url.pathname.split("/").pop();
-
-        return await deleteTimer(
-          request,
-          env,
-          id
-        );
+        return await deleteTimer(request, env, id);
       }
-
-      // =========================
-      // CHANGE PASSWORDS
-      // =========================
 
       if (
         url.pathname === "/api/passwords" &&
         request.method === "PUT"
       ) {
-        return await changePasswords(
-          request,
-          env
-        );
+        return await changePasswords(request, env);
       }
-
-      // =========================
-      // STATIC FILES
-      // =========================
 
       return env.ASSETS.fetch(request);
 
@@ -155,65 +106,41 @@ async function initializeSettings(env) {
     )
     .first();
 
-  // =========================
-  // ADMIN PASSWORD
-  // =========================
-
-  if (
-    !admin &&
-    env.INITIAL_ADMIN_PASSWORD
-  ) {
+  if (!admin && env.INITIAL_ADMIN_PASSWORD) {
     const hash = await hashPassword(
       env.INITIAL_ADMIN_PASSWORD
     );
 
     await env.DB
-      .prepare(`
-        INSERT INTO settings (key, value)
-        VALUES ('admin_password', ?)
-      `)
+      .prepare(
+        "INSERT INTO settings (key, value) VALUES ('admin_password', ?)"
+      )
       .bind(hash)
       .run();
   }
 
-  // =========================
-  // USER PASSWORD
-  // =========================
-
-  if (
-    !user &&
-    env.INITIAL_USER_PASSWORD
-  ) {
+  if (!user && env.INITIAL_USER_PASSWORD) {
     const hash = await hashPassword(
       env.INITIAL_USER_PASSWORD
     );
 
     await env.DB
-      .prepare(`
-        INSERT INTO settings (key, value)
-        VALUES ('user_password', ?)
-      `)
+      .prepare(
+        "INSERT INTO settings (key, value) VALUES ('user_password', ?)"
+      )
       .bind(hash)
       .run();
   }
 
-  // =========================
-  // VIEWER PASSWORD
-  // =========================
-
-  if (
-    !viewer &&
-    env.INITIAL_VIEWER_PASSWORD
-  ) {
+  if (!viewer && env.INITIAL_VIEWER_PASSWORD) {
     const hash = await hashPassword(
       env.INITIAL_VIEWER_PASSWORD
     );
 
     await env.DB
-      .prepare(`
-        INSERT INTO settings (key, value)
-        VALUES ('viewer_password', ?)
-      `)
+      .prepare(
+        "INSERT INTO settings (key, value) VALUES ('viewer_password', ?)"
+      )
       .bind(hash)
       .run();
   }
@@ -262,28 +189,17 @@ async function login(request, env) {
 
   if (
     admin &&
-    await verifyPassword(
-      password,
-      admin.value
-    )
+    await verifyPassword(password, admin.value)
   ) {
     role = "admin";
-
   } else if (
     user &&
-    await verifyPassword(
-      password,
-      user.value
-    )
+    await verifyPassword(password, user.value)
   ) {
     role = "user";
-
   } else if (
     viewer &&
-    await verifyPassword(
-      password,
-      viewer.value
-    )
+    await verifyPassword(password, viewer.value)
   ) {
     role = "viewer";
   }
@@ -297,21 +213,13 @@ async function login(request, env) {
     );
   }
 
-  const sessionId =
-    crypto.randomUUID();
-
-  const createdAt =
-    Date.now();
+  const sessionId = crypto.randomUUID();
+  const createdAt = Date.now();
 
   await env.DB
-    .prepare(`
-      INSERT INTO sessions (
-        id,
-        role,
-        created_at
-      )
-      VALUES (?, ?, ?)
-    `)
+    .prepare(
+      "INSERT INTO sessions (id, role, created_at) VALUES (?, ?, ?)"
+    )
     .bind(
       sessionId,
       role,
@@ -326,9 +234,7 @@ async function login(request, env) {
     }),
     {
       headers: {
-        "Content-Type":
-          "application/json",
-
+        "Content-Type": "application/json",
         "Set-Cookie":
           `session=${sessionId}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${SESSION_MAX_AGE}`
       }
@@ -341,10 +247,7 @@ async function login(request, env) {
 // CURRENT SESSION
 // ============================================================
 
-async function getCurrentSession(
-  request,
-  env
-) {
+async function getCurrentSession(request, env) {
   const cookies =
     request.headers.get("Cookie") || "";
 
@@ -357,19 +260,13 @@ async function getCurrentSession(
     return null;
   }
 
-  const sessionId =
-    match[1];
+  const sessionId = match[1];
 
   const session =
     await env.DB
-      .prepare(`
-        SELECT
-          id,
-          role,
-          created_at
-        FROM sessions
-        WHERE id = ?
-      `)
+      .prepare(
+        "SELECT id, role, created_at FROM sessions WHERE id = ?"
+      )
       .bind(sessionId)
       .first();
 
@@ -400,15 +297,9 @@ async function getCurrentSession(
 // SESSION API
 // ============================================================
 
-async function getSession(
-  request,
-  env
-) {
+async function getSession(request, env) {
   const session =
-    await getCurrentSession(
-      request,
-      env
-    );
+    await getCurrentSession(request, env);
 
   if (!session) {
     return json({
@@ -427,10 +318,7 @@ async function getSession(
 // LOGOUT
 // ============================================================
 
-async function logout(
-  request,
-  env
-) {
+async function logout(request, env) {
   const cookies =
     request.headers.get("Cookie") || "";
 
@@ -454,9 +342,7 @@ async function logout(
     }),
     {
       headers: {
-        "Content-Type":
-          "application/json",
-
+        "Content-Type": "application/json",
         "Set-Cookie":
           "session=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0"
       }
@@ -469,15 +355,9 @@ async function logout(
 // GET TIMERS
 // ============================================================
 
-async function getTimers(
-  request,
-  env
-) {
+async function getTimers(request, env) {
   const session =
-    await getCurrentSession(
-      request,
-      env
-    );
+    await getCurrentSession(request, env);
 
   if (!session) {
     return json(
@@ -490,80 +370,60 @@ async function getTimers(
 
   const result =
     await env.DB
-      .prepare(`
-        SELECT
-          id,
-          system,
-          anomaly,
-          description,
-          days,
-          hours,
-          minutes,
-          seconds,
-          remaining_seconds,
-          running,
-          started_at
-        FROM timers
-        ORDER BY id ASC
-      `)
+      .prepare(
+        "SELECT id, system, anomaly, description, days, hours, minutes, seconds, remaining_seconds, running, started_at FROM timers ORDER BY id ASC"
+      )
       .all();
 
-  const now =
-    Date.now();
+  const now = Date.now();
 
   const timers =
-    result.results.map(
-      timer => {
-        let remaining =
-          Number(
-            timer.remaining_seconds || 0
-          );
+    result.results.map(timer => {
+      let remaining =
+        Number(
+          timer.remaining_seconds || 0
+        );
 
-        if (
-          Number(timer.running) === 1
-        ) {
-          const startedAt =
-            Number(
-              timer.started_at || 0
+      if (Number(timer.running) === 1) {
+        const startedAt =
+          Number(timer.started_at || 0);
+
+        if (startedAt > 0) {
+          const elapsed =
+            Math.floor(
+              (now - startedAt) / 1000
             );
 
-          if (startedAt > 0) {
-            const elapsed =
-              Math.floor(
-                (now - startedAt) / 1000
-              );
-
-            remaining =
-              Math.max(
-                0,
-                remaining - elapsed
-              );
-          }
+          remaining =
+            Math.max(
+              0,
+              remaining - elapsed
+            );
         }
-
-        return {
-          ...timer,
-
-          system:
-            timer.system || "",
-
-          anomaly:
-            timer.anomaly || "",
-
-          description:
-            timer.description || "",
-
-          remaining_seconds:
-            remaining,
-
-          running:
-            remaining > 0 &&
-            Number(timer.running) === 1
-              ? 1
-              : 0
-        };
       }
-    );
+
+      return {
+        ...timer,
+
+        system:
+          timer.system || "",
+
+        anomaly:
+          timer.anomaly || "",
+
+        description:
+          timer.description || "",
+
+        remaining_seconds:
+          remaining,
+
+        running:
+          remaining > 0 &&
+          Number(timer.running) === 1
+            ? 1
+            : 0
+      };
+    });
 
   return json(timers);
 }
@@ -573,10 +433,7 @@ async function getTimers(
 // CREATE TIMER
 // ============================================================
 
-async function createTimer(
-  request,
-  env
-) {
+async function createTimer(request, env) {
   const session =
     await getCurrentSession(
       request,
@@ -592,9 +449,7 @@ async function createTimer(
     );
   }
 
-  if (
-    session.role === "viewer"
-  ) {
+  if (session.role === "viewer") {
     return json(
       {
         error:
@@ -608,39 +463,25 @@ async function createTimer(
     await request.json();
 
   const system =
-    String(
-      body.system || ""
-    );
+    String(body.system || "");
 
   const anomaly =
-    String(
-      body.anomaly || ""
-    );
+    String(body.anomaly || "");
 
   const description =
-    String(
-      body.description || ""
-    );
+    String(body.description || "");
 
   const days =
-    positiveInteger(
-      body.days
-    );
+    positiveInteger(body.days);
 
   const hours =
-    positiveInteger(
-      body.hours
-    );
+    positiveInteger(body.hours);
 
   const minutes =
-    positiveInteger(
-      body.minutes
-    );
+    positiveInteger(body.minutes);
 
   const seconds =
-    positiveInteger(
-      body.seconds
-    );
+    positiveInteger(body.seconds);
 
   const remaining =
     days * 86400 +
@@ -650,20 +491,9 @@ async function createTimer(
 
   const result =
     await env.DB
-      .prepare(`
-        INSERT INTO timers (
-          system,
-          anomaly,
-          description,
-          days,
-          hours,
-          minutes,
-          seconds,
-          remaining_seconds,
-          running
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)
-      `)
+      .prepare(
+        "INSERT INTO timers (system, anomaly, description, days, hours, minutes, seconds, remaining_seconds, running) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)"
+      )
       .bind(
         system,
         anomaly,
@@ -676,11 +506,26 @@ async function createTimer(
       )
       .run();
 
+  const id =
+    Number(result.meta.last_row_id);
+
   return json(
     {
       ok: true,
-      id:
-        result.meta.last_row_id
+      id,
+      timer: {
+        id,
+        system,
+        anomaly,
+        description,
+        days,
+        hours,
+        minutes,
+        seconds,
+        remaining_seconds: remaining,
+        running: 0,
+        started_at: null
+      }
     },
     201
   );
@@ -711,9 +556,7 @@ async function updateTimer(
     );
   }
 
-  if (
-    session.role === "viewer"
-  ) {
+  if (session.role === "viewer") {
     return json(
       {
         error:
@@ -734,8 +577,7 @@ async function updateTimer(
   if (!existing) {
     return json(
       {
-        error:
-          "Таймер не найден"
+        error: "Таймер не найден"
       },
       404
     );
@@ -745,87 +587,57 @@ async function updateTimer(
     await request.json();
 
   let system =
-    String(
-      existing.system || ""
-    );
+    String(existing.system || "");
 
   let anomaly =
-    String(
-      existing.anomaly || ""
-    );
+    String(existing.anomaly || "");
 
   let description =
-    String(
-      existing.description || ""
-    );
+    String(existing.description || "");
 
   let days =
-    Number(existing.days);
+    Number(existing.days || 0);
 
   let hours =
-    Number(existing.hours);
+    Number(existing.hours || 0);
 
   let minutes =
-    Number(existing.minutes);
+    Number(existing.minutes || 0);
 
   let seconds =
-    Number(existing.seconds);
+    Number(existing.seconds || 0);
 
   let remaining =
     Number(
-      existing.remaining_seconds
+      existing.remaining_seconds || 0
     );
 
   let running =
-    Number(existing.running);
+    Number(existing.running || 0);
 
   let startedAt =
     existing.started_at
       ? Number(existing.started_at)
       : 0;
 
-  // -------------------------
-  // SYSTEM
-  // -------------------------
 
-  if (
-    "system" in body
-  ) {
+  if ("system" in body) {
     system =
-      String(
-        body.system || ""
-      );
+      String(body.system || "");
   }
 
-  // -------------------------
-  // ANOMALY
-  // -------------------------
 
-  if (
-    "anomaly" in body
-  ) {
+  if ("anomaly" in body) {
     anomaly =
-      String(
-        body.anomaly || ""
-      );
+      String(body.anomaly || "");
   }
 
-  // -------------------------
-  // PLAYER
-  // -------------------------
 
-  if (
-    "description" in body
-  ) {
+  if ("description" in body) {
     description =
-      String(
-        body.description || ""
-      );
+      String(body.description || "");
   }
 
-  // -------------------------
-  // TIMER VALUES
-  // -------------------------
 
   if (
     "days" in body ||
@@ -834,24 +646,16 @@ async function updateTimer(
     "seconds" in body
   ) {
     days =
-      positiveInteger(
-        body.days
-      );
+      positiveInteger(body.days);
 
     hours =
-      positiveInteger(
-        body.hours
-      );
+      positiveInteger(body.hours);
 
     minutes =
-      positiveInteger(
-        body.minutes
-      );
+      positiveInteger(body.minutes);
 
     seconds =
-      positiveInteger(
-        body.seconds
-      );
+      positiveInteger(body.seconds);
 
     remaining =
       days * 86400 +
@@ -863,13 +667,8 @@ async function updateTimer(
     startedAt = 0;
   }
 
-  // -------------------------
-  // REMAINING SECONDS
-  // -------------------------
 
-  if (
-    "remaining_seconds" in body
-  ) {
+  if ("remaining_seconds" in body) {
     remaining =
       Math.max(
         0,
@@ -879,52 +678,32 @@ async function updateTimer(
       );
   }
 
-  // -------------------------
-  // RUNNING
-  // -------------------------
 
-  if (
-    "running" in body
-  ) {
+  if ("running" in body) {
     running =
-      body.running
-        ? 1
-        : 0;
+      body.running ? 1 : 0;
 
     if (
       running === 1 &&
       remaining > 0
     ) {
-      startedAt =
-        Date.now();
+      startedAt = Date.now();
     } else {
       running = 0;
       startedAt = 0;
     }
   }
 
-  if (
-    running === 0
-  ) {
+
+  if (running === 0) {
     startedAt = 0;
   }
 
+
   await env.DB
-    .prepare(`
-      UPDATE timers
-      SET
-        system = ?,
-        anomaly = ?,
-        description = ?,
-        days = ?,
-        hours = ?,
-        minutes = ?,
-        seconds = ?,
-        remaining_seconds = ?,
-        running = ?,
-        started_at = ?
-      WHERE id = ?
-    `)
+    .prepare(
+      "UPDATE timers SET system = ?, anomaly = ?, description = ?, days = ?, hours = ?, minutes = ?, seconds = ?, remaining_seconds = ?, running = ?, started_at = ? WHERE id = ?"
+    )
     .bind(
       system,
       anomaly,
@@ -944,28 +723,16 @@ async function updateTimer(
     ok: true,
 
     timer: {
-      id:
-        Number(id),
-
+      id: Number(id),
       system,
-
       anomaly,
-
       description,
-
       days,
-
       hours,
-
       minutes,
-
       seconds,
-
-      remaining_seconds:
-        remaining,
-
+      remaining_seconds: remaining,
       running,
-
       started_at:
         startedAt || null
     }
@@ -997,9 +764,7 @@ async function deleteTimer(
     );
   }
 
-  if (
-    session.role === "viewer"
-  ) {
+  if (session.role === "viewer") {
     return json(
       {
         error:
@@ -1052,57 +817,38 @@ async function changePasswords(
   const body =
     await request.json();
 
-  // -------------------------
-  // ADMIN PASSWORD
-  // -------------------------
 
-  if (
-    body.adminPassword
-  ) {
+  if (body.adminPassword) {
     const hash =
       await hashPassword(
         body.adminPassword
       );
 
     await env.DB
-      .prepare(`
-        UPDATE settings
-        SET value = ?
-        WHERE key = 'admin_password'
-      `)
+      .prepare(
+        "UPDATE settings SET value = ? WHERE key = 'admin_password'"
+      )
       .bind(hash)
       .run();
   }
 
-  // -------------------------
-  // USER PASSWORD
-  // -------------------------
 
-  if (
-    body.userPassword
-  ) {
+  if (body.userPassword) {
     const hash =
       await hashPassword(
         body.userPassword
       );
 
     await env.DB
-      .prepare(`
-        UPDATE settings
-        SET value = ?
-        WHERE key = 'user_password'
-      `)
+      .prepare(
+        "UPDATE settings SET value = ? WHERE key = 'user_password'"
+      )
       .bind(hash)
       .run();
   }
 
-  // -------------------------
-  // VIEWER PASSWORD
-  // -------------------------
 
-  if (
-    body.viewerPassword
-  ) {
+  if (body.viewerPassword) {
     const hash =
       await hashPassword(
         body.viewerPassword
@@ -1117,26 +863,16 @@ async function changePasswords(
 
     if (existingViewer) {
       await env.DB
-        .prepare(`
-          UPDATE settings
-          SET value = ?
-          WHERE key = 'viewer_password'
-        `)
+        .prepare(
+          "UPDATE settings SET value = ? WHERE key = 'viewer_password'"
+        )
         .bind(hash)
         .run();
-
     } else {
       await env.DB
-        .prepare(`
-          INSERT INTO settings (
-            key,
-            value
-          )
-          VALUES (
-            'viewer_password',
-            ?
-          )
-        `)
+        .prepare(
+          "INSERT INTO settings (key, value) VALUES ('viewer_password', ?)"
+        )
         .bind(hash)
         .run();
     }
@@ -1152,9 +888,7 @@ async function changePasswords(
 // PASSWORD HASHING
 // ============================================================
 
-async function hashPassword(
-  password
-) {
+async function hashPassword(password) {
   const salt =
     crypto.randomUUID();
 
@@ -1176,15 +910,9 @@ async function hashPassword(
     await crypto.subtle.deriveBits(
       {
         name: "PBKDF2",
-
-        salt:
-          encoder.encode(salt),
-
-        iterations:
-          PBKDF2_ITERATIONS,
-
-        hash:
-          "SHA-256"
+        salt: encoder.encode(salt),
+        iterations: PBKDF2_ITERATIONS,
+        hash: "SHA-256"
       },
       key,
       256
@@ -1247,14 +975,9 @@ async function verifyPassword(
       await crypto.subtle.deriveBits(
         {
           name: "PBKDF2",
-
-          salt:
-            encoder.encode(salt),
-
+          salt: encoder.encode(salt),
           iterations,
-
-          hash:
-            "SHA-256"
+          hash: "SHA-256"
         },
         key,
         256
@@ -1280,9 +1003,7 @@ async function verifyPassword(
 // HELPERS
 // ============================================================
 
-function bytesToHex(
-  bytes
-) {
+function bytesToHex(bytes) {
   return Array.from(bytes)
     .map(
       byte =>
@@ -1294,13 +1015,8 @@ function bytesToHex(
 }
 
 
-function constantTimeEqual(
-  a,
-  b
-) {
-  if (
-    a.length !== b.length
-  ) {
+function constantTimeEqual(a, b) {
+  if (a.length !== b.length) {
     return false;
   }
 
@@ -1320,9 +1036,7 @@ function constantTimeEqual(
 }
 
 
-function positiveInteger(
-  value
-) {
+function positiveInteger(value) {
   const number =
     Number.parseInt(
       value,
