@@ -6,9 +6,9 @@ export default {
     try {
       await initializeSettings(env);
 
-const url = new URL(request.url);
+      const url = new URL(request.url);
 
-if (url.pathname === "/api/login" && request.method === "POST") {
+      if (url.pathname === "/api/login" && request.method === "POST") {
         return await login(request, env);
       }
 
@@ -144,7 +144,10 @@ async function login(request, env) {
     .run();
 
   return new Response(
-    JSON.stringify({ ok: true, role }),
+    JSON.stringify({
+      ok: true,
+      role
+    }),
     {
       headers: {
         "Content-Type": "application/json",
@@ -161,9 +164,11 @@ async function login(request, env) {
 // ============================================================
 
 async function getCurrentSession(request, env) {
-  const cookies = request.headers.get("Cookie") || "";
+  const cookies =
+    request.headers.get("Cookie") || "";
 
-  const match = cookies.match(/(?:^|;\s*)session=([^;]+)/);
+  const match =
+    cookies.match(/(?:^|;\s*)session=([^;]+)/);
 
   if (!match) {
     return null;
@@ -184,7 +189,11 @@ async function getCurrentSession(request, env) {
     return null;
   }
 
-  if (Date.now() - Number(session.created_at) > SESSION_MAX_AGE * 1000) {
+  if (
+    Date.now() -
+    Number(session.created_at) >
+    SESSION_MAX_AGE * 1000
+  ) {
     await env.DB
       .prepare("DELETE FROM sessions WHERE id = ?")
       .bind(sessionId)
@@ -198,7 +207,8 @@ async function getCurrentSession(request, env) {
 
 
 async function getSession(request, env) {
-  const session = await getCurrentSession(request, env);
+  const session =
+    await getCurrentSession(request, env);
 
   if (!session) {
     return json({
@@ -218,18 +228,25 @@ async function getSession(request, env) {
 // ============================================================
 
 async function logout(request, env) {
-  const cookies = request.headers.get("Cookie") || "";
-  const match = cookies.match(/(?:^|;\s*)session=([^;]+)/);
+  const cookies =
+    request.headers.get("Cookie") || "";
+
+  const match =
+    cookies.match(/(?:^|;\s*)session=([^;]+)/);
 
   if (match) {
     await env.DB
-      .prepare("DELETE FROM sessions WHERE id = ?")
+      .prepare(
+        "DELETE FROM sessions WHERE id = ?"
+      )
       .bind(match[1])
       .run();
   }
 
   return new Response(
-    JSON.stringify({ ok: true }),
+    JSON.stringify({
+      ok: true
+    }),
     {
       headers: {
         "Content-Type": "application/json",
@@ -246,16 +263,20 @@ async function logout(request, env) {
 // ============================================================
 
 async function getTimers(request, env) {
-  const session = await getCurrentSession(request, env);
+  const session =
+    await getCurrentSession(request, env);
 
   if (!session) {
-    return json({ error: "Не авторизован" }, 401);
+    return json({
+      error: "Не авторизован"
+    }, 401);
   }
 
   const result = await env.DB
     .prepare(`
       SELECT
         id,
+        system,
         description,
         days,
         hours,
@@ -271,44 +292,94 @@ async function getTimers(request, env) {
 
   const now = Date.now();
 
-  const timers = result.results.map(timer => {
-    let remaining = Number(timer.remaining_seconds || 0);
+  const timers =
+    result.results.map(timer => {
 
-    if (Number(timer.running) === 1) {
-      const startedAt = Number(timer.started_at || 0);
+      let remaining =
+        Number(
+          timer.remaining_seconds || 0
+        );
 
-      if (startedAt > 0) {
-        const elapsed = Math.floor((now - startedAt) / 1000);
-        remaining = Math.max(0, remaining - elapsed);
+      if (
+        Number(timer.running) === 1
+      ) {
+        const startedAt =
+          Number(
+            timer.started_at || 0
+          );
+
+        if (startedAt > 0) {
+          const elapsed =
+            Math.floor(
+              (now - startedAt) / 1000
+            );
+
+          remaining =
+            Math.max(
+              0,
+              remaining - elapsed
+            );
+        }
       }
-    }
 
-    return {
-      ...timer,
-      remaining_seconds: remaining,
-      running: remaining > 0 && Number(timer.running) === 1 ? 1 : 0
-    };
-  });
+      return {
+        ...timer,
+
+        system:
+          timer.system || "",
+
+        description:
+          timer.description || "",
+
+        remaining_seconds:
+          remaining,
+
+        running:
+          remaining > 0 &&
+          Number(timer.running) === 1
+            ? 1
+            : 0
+      };
+    });
 
   return json(timers);
 }
 
 
+// ============================================================
+// CREATE TIMER
+// ============================================================
+
 async function createTimer(request, env) {
-  const session = await getCurrentSession(request, env);
+  const session =
+    await getCurrentSession(request, env);
 
   if (!session) {
-    return json({ error: "Не авторизован" }, 401);
+    return json({
+      error: "Не авторизован"
+    }, 401);
   }
 
-  const body = await request.json();
+  const body =
+    await request.json();
 
-  const description = String(body.description || "");
+  const system =
+    String(body.system || "");
 
-  const days = positiveInteger(body.days);
-  const hours = positiveInteger(body.hours);
-  const minutes = positiveInteger(body.minutes);
-  const seconds = positiveInteger(body.seconds);
+  const description =
+    String(body.description || "");
+
+  const days =
+    positiveInteger(body.days);
+
+  const hours =
+    positiveInteger(body.hours);
+
+  const minutes =
+    positiveInteger(body.minutes);
+
+  const seconds =
+    positiveInteger(body.seconds);
 
   const remaining =
     days * 86400 +
@@ -316,28 +387,31 @@ async function createTimer(request, env) {
     minutes * 60 +
     seconds;
 
-  const result = await env.DB
-    .prepare(`
-      INSERT INTO timers (
+  const result =
+    await env.DB
+      .prepare(`
+        INSERT INTO timers (
+          system,
+          description,
+          days,
+          hours,
+          minutes,
+          seconds,
+          remaining_seconds,
+          running
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, 0)
+      `)
+      .bind(
+        system,
         description,
         days,
         hours,
         minutes,
         seconds,
-        remaining_seconds,
-        running
+        remaining
       )
-      VALUES (?, ?, ?, ?, ?, ?, 0)
-    `)
-    .bind(
-      description,
-      days,
-      hours,
-      minutes,
-      seconds,
-      remaining
-    )
-    .run();
+      .run();
 
   return json({
     ok: true,
@@ -346,38 +420,103 @@ async function createTimer(request, env) {
 }
 
 
-async function updateTimer(request, env, id) {
-  const session = await getCurrentSession(request, env);
+// ============================================================
+// UPDATE TIMER
+// ============================================================
+
+async function updateTimer(
+  request,
+  env,
+  id
+) {
+  const session =
+    await getCurrentSession(request, env);
 
   if (!session) {
-    return json({ error: "Не авторизован" }, 401);
+    return json({
+      error: "Не авторизован"
+    }, 401);
   }
 
-  const existing = await env.DB
-    .prepare("SELECT * FROM timers WHERE id = ?")
-    .bind(id)
-    .first();
+  const existing =
+    await env.DB
+      .prepare(
+        "SELECT * FROM timers WHERE id = ?"
+      )
+      .bind(id)
+      .first();
 
   if (!existing) {
-    return json({ error: "Таймер не найден" }, 404);
+    return json({
+      error: "Таймер не найден"
+    }, 404);
   }
 
-  const body = await request.json();
+  const body =
+    await request.json();
 
-  let description = existing.description;
-  let days = Number(existing.days);
-  let hours = Number(existing.hours);
-  let minutes = Number(existing.minutes);
-  let seconds = Number(existing.seconds);
-  let remaining = Number(existing.remaining_seconds);
-  let running = Number(existing.running);
-  let startedAt = existing.started_at
-    ? Number(existing.started_at)
-    : 0;
+
+  // ==========================================================
+  // Сохраняем ВСЕ существующие значения.
+  // Это важно, потому что PUT может менять
+  // только одно поле.
+  // ==========================================================
+
+  let system =
+    String(existing.system || "");
+
+  let description =
+    String(existing.description || "");
+
+  let days =
+    Number(existing.days);
+
+  let hours =
+    Number(existing.hours);
+
+  let minutes =
+    Number(existing.minutes);
+
+  let seconds =
+    Number(existing.seconds);
+
+  let remaining =
+    Number(
+      existing.remaining_seconds
+    );
+
+  let running =
+    Number(existing.running);
+
+  let startedAt =
+    existing.started_at
+      ? Number(existing.started_at)
+      : 0;
+
+
+  // ==========================================================
+  // SYSTEM
+  // ==========================================================
+
+  if ("system" in body) {
+    system =
+      String(body.system || "");
+  }
+
+
+  // ==========================================================
+  // DESCRIPTION
+  // ==========================================================
 
   if ("description" in body) {
-    description = String(body.description || "");
+    description =
+      String(body.description || "");
   }
+
+
+  // ==========================================================
+  // DURATION
+  // ==========================================================
 
   if (
     "days" in body ||
@@ -385,10 +524,17 @@ async function updateTimer(request, env, id) {
     "minutes" in body ||
     "seconds" in body
   ) {
-    days = positiveInteger(body.days);
-    hours = positiveInteger(body.hours);
-    minutes = positiveInteger(body.minutes);
-    seconds = positiveInteger(body.seconds);
+    days =
+      positiveInteger(body.days);
+
+    hours =
+      positiveInteger(body.hours);
+
+    minutes =
+      positiveInteger(body.minutes);
+
+    seconds =
+      positiveInteger(body.seconds);
 
     remaining =
       days * 86400 +
@@ -400,17 +546,34 @@ async function updateTimer(request, env, id) {
     startedAt = 0;
   }
 
+
+  // ==========================================================
+  // REMAINING SECONDS
+  // ==========================================================
+
   if ("remaining_seconds" in body) {
-    remaining = Math.max(
-      0,
-      positiveInteger(body.remaining_seconds)
-    );
+    remaining =
+      Math.max(
+        0,
+        positiveInteger(
+          body.remaining_seconds
+        )
+      );
   }
 
-  if ("running" in body) {
-    running = body.running ? 1 : 0;
 
-    if (running === 1 && remaining > 0) {
+  // ==========================================================
+  // RUNNING
+  // ==========================================================
+
+  if ("running" in body) {
+    running =
+      body.running ? 1 : 0;
+
+    if (
+      running === 1 &&
+      remaining > 0
+    ) {
       startedAt = Date.now();
     } else {
       running = 0;
@@ -418,14 +581,21 @@ async function updateTimer(request, env, id) {
     }
   }
 
+
   if (running === 0) {
     startedAt = 0;
   }
+
+
+  // ==========================================================
+  // DATABASE UPDATE
+  // ==========================================================
 
   await env.DB
     .prepare(`
       UPDATE timers
       SET
+        system = ?,
         description = ?,
         days = ?,
         hours = ?,
@@ -437,6 +607,7 @@ async function updateTimer(request, env, id) {
       WHERE id = ?
     `)
     .bind(
+      system,
       description,
       days,
       hours,
@@ -449,31 +620,66 @@ async function updateTimer(request, env, id) {
     )
     .run();
 
+
+  // ==========================================================
+  // RESPONSE
+  // ==========================================================
+
   return json({
     ok: true,
+
     timer: {
       id: Number(id),
+
+      system,
+
       description,
+
       days,
+
       hours,
+
       minutes,
+
       seconds,
-      remaining_seconds: remaining,
-      running
+
+      remaining_seconds:
+        remaining,
+
+      running,
+
+      started_at:
+        startedAt || null
     }
   });
 }
 
 
-async function deleteTimer(request, env, id) {
-  const session = await getCurrentSession(request, env);
+// ============================================================
+// DELETE TIMER
+// ============================================================
+
+async function deleteTimer(
+  request,
+  env,
+  id
+) {
+  const session =
+    await getCurrentSession(
+      request,
+      env
+    );
 
   if (!session) {
-    return json({ error: "Не авторизован" }, 401);
+    return json({
+      error: "Не авторизован"
+    }, 401);
   }
 
   await env.DB
-    .prepare("DELETE FROM timers WHERE id = ?")
+    .prepare(
+      "DELETE FROM timers WHERE id = ?"
+    )
     .bind(id)
     .run();
 
@@ -487,19 +693,35 @@ async function deleteTimer(request, env, id) {
 // PASSWORDS
 // ============================================================
 
-async function changePasswords(request, env) {
-  const session = await getCurrentSession(request, env);
+async function changePasswords(
+  request,
+  env
+) {
+  const session =
+    await getCurrentSession(
+      request,
+      env
+    );
 
-  if (!session || session.role !== "admin") {
+  if (
+    !session ||
+    session.role !== "admin"
+  ) {
     return json({
-      error: "Только администратор может менять пароли"
+      error:
+        "Только администратор может менять пароли"
     }, 403);
   }
 
-  const body = await request.json();
+  const body =
+    await request.json();
+
 
   if (body.adminPassword) {
-    const hash = await hashPassword(body.adminPassword);
+    const hash =
+      await hashPassword(
+        body.adminPassword
+      );
 
     await env.DB
       .prepare(`
@@ -511,8 +733,12 @@ async function changePasswords(request, env) {
       .run();
   }
 
+
   if (body.userPassword) {
-    const hash = await hashPassword(body.userPassword);
+    const hash =
+      await hashPassword(
+        body.userPassword
+      );
 
     await env.DB
       .prepare(`
@@ -523,6 +749,7 @@ async function changePasswords(request, env) {
       .bind(hash)
       .run();
   }
+
 
   return json({
     ok: true
@@ -535,52 +762,14 @@ async function changePasswords(request, env) {
 // ============================================================
 
 async function hashPassword(password) {
-  const salt = crypto.randomUUID();
+  const salt =
+    crypto.randomUUID();
 
-  const encoder = new TextEncoder();
+  const encoder =
+    new TextEncoder();
 
-  const key = await crypto.subtle.importKey(
-    "raw",
-    encoder.encode(password),
-    {
-      name: "PBKDF2"
-    },
-    false,
-    ["deriveBits"]
-  );
-
-  const bits = await crypto.subtle.deriveBits(
-    {
-      name: "PBKDF2",
-      salt: encoder.encode(salt),
-      iterations: PBKDF2_ITERATIONS,
-      hash: "SHA-256"
-    },
-    key,
-    256
-  );
-
-  const hash = bytesToHex(new Uint8Array(bits));
-
-  return `pbkdf2$${PBKDF2_ITERATIONS}$${salt}$${hash}`;
-}
-
-
-async function verifyPassword(password, stored) {
-  try {
-    const parts = stored.split("$");
-
-    if (parts.length !== 4 || parts[0] !== "pbkdf2") {
-      return false;
-    }
-
-    const iterations = Number(parts[1]);
-    const salt = parts[2];
-    const expectedHash = parts[3];
-
-    const encoder = new TextEncoder();
-
-    const key = await crypto.subtle.importKey(
+  const key =
+    await crypto.subtle.importKey(
       "raw",
       encoder.encode(password),
       {
@@ -590,20 +779,86 @@ async function verifyPassword(password, stored) {
       ["deriveBits"]
     );
 
-    const bits = await crypto.subtle.deriveBits(
+  const bits =
+    await crypto.subtle.deriveBits(
       {
         name: "PBKDF2",
-        salt: encoder.encode(salt),
-        iterations,
+        salt:
+          encoder.encode(salt),
+        iterations:
+          PBKDF2_ITERATIONS,
         hash: "SHA-256"
       },
       key,
       256
     );
 
-    const actualHash = bytesToHex(
+  const hash =
+    bytesToHex(
       new Uint8Array(bits)
     );
+
+  return (
+    `pbkdf2$${PBKDF2_ITERATIONS}$${salt}$${hash}`
+  );
+}
+
+
+async function verifyPassword(
+  password,
+  stored
+) {
+  try {
+    const parts =
+      stored.split("$");
+
+    if (
+      parts.length !== 4 ||
+      parts[0] !== "pbkdf2"
+    ) {
+      return false;
+    }
+
+    const iterations =
+      Number(parts[1]);
+
+    const salt =
+      parts[2];
+
+    const expectedHash =
+      parts[3];
+
+    const encoder =
+      new TextEncoder();
+
+    const key =
+      await crypto.subtle.importKey(
+        "raw",
+        encoder.encode(password),
+        {
+          name: "PBKDF2"
+        },
+        false,
+        ["deriveBits"]
+      );
+
+    const bits =
+      await crypto.subtle.deriveBits(
+        {
+          name: "PBKDF2",
+          salt:
+            encoder.encode(salt),
+          iterations,
+          hash: "SHA-256"
+        },
+        key,
+        256
+      );
+
+    const actualHash =
+      bytesToHex(
+        new Uint8Array(bits)
+      );
 
     return constantTimeEqual(
       actualHash,
@@ -618,7 +873,12 @@ async function verifyPassword(password, stored) {
 
 function bytesToHex(bytes) {
   return Array.from(bytes)
-    .map(byte => byte.toString(16).padStart(2, "0"))
+    .map(
+      byte =>
+        byte
+          .toString(16)
+          .padStart(2, "0")
+    )
     .join("");
 }
 
@@ -630,8 +890,14 @@ function constantTimeEqual(a, b) {
 
   let result = 0;
 
-  for (let i = 0; i < a.length; i++) {
-    result |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  for (
+    let i = 0;
+    i < a.length;
+    i++
+  ) {
+    result |=
+      a.charCodeAt(i) ^
+      b.charCodeAt(i);
   }
 
   return result === 0;
@@ -643,9 +909,16 @@ function constantTimeEqual(a, b) {
 // ============================================================
 
 function positiveInteger(value) {
-  const number = Number.parseInt(value, 10);
+  const number =
+    Number.parseInt(
+      value,
+      10
+    );
 
-  if (!Number.isFinite(number) || number < 0) {
+  if (
+    !Number.isFinite(number) ||
+    number < 0
+  ) {
     return 0;
   }
 
@@ -653,15 +926,19 @@ function positiveInteger(value) {
 }
 
 
-function json(data, status = 200) {
+function json(
+  data,
+  status = 200
+) {
   return new Response(
     JSON.stringify(data),
     {
       status,
+
       headers: {
-        "Content-Type": "application/json"
+        "Content-Type":
+          "application/json"
       }
     }
   );
 }
-
