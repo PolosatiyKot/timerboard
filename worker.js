@@ -1,7 +1,6 @@
 const SESSION_MAX_AGE = 60 * 60 * 24;
 const PBKDF2_ITERATIONS = 100000;
 
-
 export default {
 
   async fetch(request, env) {
