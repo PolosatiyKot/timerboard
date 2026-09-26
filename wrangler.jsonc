@@ -6,5 +6,12 @@
 "assets": {
 "directory": "./public",
 "binding": "ASSETS"
+},
+"d1_databases": [
+{
+"binding": "DB",
+"database_name": "timer-board-db",
+"database_id": "db815890-1997-4df4-921e-30ce83cb6c78"
 }
+]
 }
