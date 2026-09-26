@@ -45,7 +45,7 @@ return env.ASSETS.fetch(request);
 
 } catch (error) {
 console.error("Worker error:", error);
-return json({ error: "Внутренняя ошибка сервера" }, 500);
+return json({ error: String(error?.message || error) }, 500);
 }
 }
 
