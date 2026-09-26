@@ -1,15 +1,13 @@
 {
-  "name": "timer-board",
-  "version": "1.0.0",
-  "description": "Timer Board with user and administrator access",
-  "main": "server.js",
-  "scripts": {
-    "start": "node server.js"
-  },
-  "dependencies": {
-    "express": "^4.21.2",
-    "better-sqlite3": "^11.8.1",
-    "bcrypt": "^5.1.1",
-    "express-session": "^1.18.1"
-  }
+"name": "timer-board",
+"version": "1.0.0",
+"private": true,
+"description": "Timer Board with user and administrator access",
+"scripts": {
+"deploy": "wrangler deploy",
+"dev": "wrangler dev"
+},
+"devDependencies": {
+"wrangler": "^4.33.1"
+}
 }
