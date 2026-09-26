@@ -1,5 +1,5 @@
 name = "timerboard"
-main = "worker.js"
+main = "worker.mjs"
 compatibility_date = "2026-09-25"
 
 [assets]
@@ -10,10 +10,6 @@ binding = "ASSETS"
 binding = "DB"
 database_name = "timer-board-db"
 database_id = "db815890-1997-4df4-921e-30ce83cb6c78"
-
-[[rules]]
-type = "ESModule"
-globs = ["worker.js"]
 
 [secrets]
 required = [
