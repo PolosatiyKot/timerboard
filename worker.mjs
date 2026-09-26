@@ -3,11 +3,9 @@ const PBKDF2_ITERATIONS = 100000;
 
 async function fetchHandler(request, env) {
 try {
-await initializeSettings(env);
-
-```
 const url = new URL(request.url);
 
+```
 if (url.pathname === "/api/login" && request.method === "POST") {
   return await login(request, env);
 }
@@ -46,7 +44,7 @@ return env.ASSETS.fetch(request);
 ```
 
 } catch (error) {
-console.error(error);
+console.error("Worker error:", error);
 return json({ error: "Внутренняя ошибка сервера" }, 500);
 }
 }
@@ -56,52 +54,63 @@ fetch: fetchHandler
 };
 
 async function initializeSettings(env) {
-const admin = await env.DB
-.prepare("SELECT value FROM settings WHERE key = 'admin_password'")
-.first();
+const settings = await env.DB
+.prepare("SELECT key FROM settings")
+.all();
 
-const user = await env.DB
-.prepare("SELECT value FROM settings WHERE key = 'user_password'")
-.first();
+const existing = new Set(
+(settings.results || []).map(row => row.key)
+);
 
-const viewer = await env.DB
-.prepare("SELECT value FROM settings WHERE key = 'viewer_password'")
-.first();
+const inserts = [];
 
-if (!admin && env.INITIAL_ADMIN_PASSWORD) {
+if (!existing.has("admin_password") && env.INITIAL_ADMIN_PASSWORD) {
 const hash = await hashPassword(env.INITIAL_ADMIN_PASSWORD);
 
 ```
-await env.DB
-  .prepare("INSERT INTO settings (key, value) VALUES ('admin_password', ?)")
-  .bind(hash)
-  .run();
+inserts.push(
+  env.DB
+    .prepare(
+      "INSERT INTO settings (key, value) VALUES ('admin_password', ?)"
+    )
+    .bind(hash)
+);
 ```
 
 }
 
-if (!user && env.INITIAL_USER_PASSWORD) {
+if (!existing.has("user_password") && env.INITIAL_USER_PASSWORD) {
 const hash = await hashPassword(env.INITIAL_USER_PASSWORD);
 
 ```
-await env.DB
-  .prepare("INSERT INTO settings (key, value) VALUES ('user_password', ?)")
-  .bind(hash)
-  .run();
+inserts.push(
+  env.DB
+    .prepare(
+      "INSERT INTO settings (key, value) VALUES ('user_password', ?)"
+    )
+    .bind(hash)
+);
 ```
 
 }
 
-if (!viewer && env.INITIAL_VIEWER_PASSWORD) {
+if (!existing.has("viewer_password") && env.INITIAL_VIEWER_PASSWORD) {
 const hash = await hashPassword(env.INITIAL_VIEWER_PASSWORD);
 
 ```
-await env.DB
-  .prepare("INSERT INTO settings (key, value) VALUES ('viewer_password', ?)")
-  .bind(hash)
-  .run();
+inserts.push(
+  env.DB
+    .prepare(
+      "INSERT INTO settings (key, value) VALUES ('viewer_password', ?)"
+    )
+    .bind(hash)
+);
 ```
 
+}
+
+if (inserts.length > 0) {
+await env.DB.batch(inserts);
 }
 }
 
@@ -112,6 +121,8 @@ const password = String(body.password || "");
 if (!password) {
 return json({ error: "Введите пароль" }, 400);
 }
+
+await initializeSettings(env);
 
 const admin = await env.DB
 .prepare("SELECT value FROM settings WHERE key = 'admin_password'")
@@ -143,7 +154,9 @@ const sessionId = crypto.randomUUID();
 const createdAt = Date.now();
 
 await env.DB
-.prepare("INSERT INTO sessions (id, role, created_at) VALUES (?, ?, ?)")
+.prepare(
+"INSERT INTO sessions (id, role, created_at) VALUES (?, ?, ?)"
+)
 .bind(sessionId, role, createdAt)
 .run();
 
@@ -180,7 +193,9 @@ return null;
 const sessionId = match[1];
 
 const session = await env.DB
-.prepare("SELECT id, role, created_at FROM sessions WHERE id = ?")
+.prepare(
+"SELECT id, role, created_at FROM sessions WHERE id = ?"
+)
 .bind(sessionId)
 .first();
 
@@ -188,7 +203,10 @@ if (!session) {
 return null;
 }
 
-if (Date.now() - Number(session.created_at) > SESSION_MAX_AGE * 1000) {
+if (
+Date.now() - Number(session.created_at) >
+SESSION_MAX_AGE * 1000
+) {
 await env.DB
 .prepare("DELETE FROM sessions WHERE id = ?")
 .bind(sessionId)
@@ -204,6 +222,8 @@ return session;
 }
 
 async function getSession(request, env) {
+await initializeSettings(env);
+
 const session = await getCurrentSession(request, env);
 
 if (!session) {
@@ -238,13 +258,16 @@ ok: true
 status: 200,
 headers: {
 "Content-Type": "application/json",
-"Set-Cookie": "session=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0"
+"Set-Cookie":
+"session=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0"
 }
 }
 );
 }
 
 async function getTimers(request, env) {
+await initializeSettings(env);
+
 const session = await getCurrentSession(request, env);
 
 if (!session) {
@@ -269,8 +292,14 @@ if (Number(timer.running) === 1) {
   const startedAt = Number(timer.started_at || 0);
 
   if (startedAt > 0) {
-    const elapsed = Math.floor((now - startedAt) / 1000);
-    remaining = Math.max(0, remaining - elapsed);
+    const elapsed = Math.floor(
+      (now - startedAt) / 1000
+    );
+
+    remaining = Math.max(
+      0,
+      remaining - elapsed
+    );
   }
 }
 
@@ -284,7 +313,11 @@ return {
   minutes: Number(timer.minutes || 0),
   seconds: Number(timer.seconds || 0),
   remaining_seconds: remaining,
-  running: remaining > 0 && Number(timer.running) === 1 ? 1 : 0,
+  running:
+    remaining > 0 &&
+    Number(timer.running) === 1
+      ? 1
+      : 0,
   started_at: timer.started_at || null
 };
 ```
@@ -628,9 +661,18 @@ key,
 256
 );
 
-const hash = bytesToHex(new Uint8Array(bits));
+const hash = bytesToHex(
+new Uint8Array(bits)
+);
 
-return "pbkdf2$" + PBKDF2_ITERATIONS + "$" + salt + "$" + hash;
+return (
+"pbkdf2$" +
+PBKDF2_ITERATIONS +
+"$" +
+salt +
+"$" +
+hash
+);
 }
 
 async function verifyPassword(password, stored) {
@@ -638,7 +680,10 @@ try {
 const parts = String(stored || "").split("$");
 
 ```
-if (parts.length !== 4 || parts[0] !== "pbkdf2") {
+if (
+  parts.length !== 4 ||
+  parts[0] !== "pbkdf2"
+) {
   return false;
 }
 
@@ -669,9 +714,14 @@ const bits = await crypto.subtle.deriveBits(
   256
 );
 
-const actualHash = bytesToHex(new Uint8Array(bits));
+const actualHash = bytesToHex(
+  new Uint8Array(bits)
+);
 
-return constantTimeEqual(actualHash, expectedHash);
+return constantTimeEqual(
+  actualHash,
+  expectedHash
+);
 ```
 
 } catch (error) {
@@ -682,7 +732,9 @@ return false;
 function bytesToHex(bytes) {
 return Array.from(bytes)
 .map(function(byte) {
-return byte.toString(16).padStart(2, "0");
+return byte
+.toString(16)
+.padStart(2, "0");
 })
 .join("");
 }
@@ -695,7 +747,9 @@ return false;
 let result = 0;
 
 for (let i = 0; i < a.length; i++) {
-result |= a.charCodeAt(i) ^ b.charCodeAt(i);
+result |=
+a.charCodeAt(i) ^
+b.charCodeAt(i);
 }
 
 return result === 0;
@@ -704,7 +758,10 @@ return result === 0;
 function positiveInteger(value) {
 const number = Number.parseInt(value, 10);
 
-if (!Number.isFinite(number) || number < 0) {
+if (
+!Number.isFinite(number) ||
+number < 0
+) {
 return 0;
 }
 
