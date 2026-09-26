@@ -19,6 +19,7 @@ globs = ["worker.js"]
 [secrets]
 required = [
   "INITIAL_ADMIN_PASSWORD",
-  "INITIAL_USER_PASSWORD"
+  "INITIAL_USER_PASSWORD",
+  "INITIAL_VIEWER_PASSWORD"
 ]
 ```
