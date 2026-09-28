@@ -9,5 +9,5 @@ directory = "./public"
 
 [[d1_databases]]
 binding = "DB"                # available in the worker as env.DB
-database_name = "timers-db"
-database_id = "REPLACE_WITH_YOUR_DATABASE_ID"
+database_name = "timer-board-db"
+database_id = "db815890-1997-4df4-921e-30ce83cb6c78"
